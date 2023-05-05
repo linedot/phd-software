@@ -1,0 +1,6 @@
+[submodule "uarch_bench"]
+	path = uarch_bench
+	url = https://gitlab.jsc.fz-juelich.de/nassyr1/fma_indep_bench
+[submodule "gem5"]
+	path = gem5
+	url = https://github.com/gem5/gem5
