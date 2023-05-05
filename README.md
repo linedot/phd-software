@@ -8,7 +8,8 @@ GEM5 and uarch exploration
 ## Build gem5 in workbench: ##
 
 ```
-git clone --recurse-submodules https://github.com/linedot/phd-software.gi
+git clone --recurse-submodules https://github.com/linedot/phd-software.git
+mkdir phd-software/gem5-workbench/build
 cd phd-software/gem5
 scons ../gem5-workbench/build/ARM/gem5.opt -j$(nproc)
 ```
