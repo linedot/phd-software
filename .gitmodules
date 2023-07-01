@@ -4,3 +4,9 @@
 [submodule "gem5"]
 	path = gem5
 	url = https://github.com/linedot/gem5.git
+[submodule "gem5-workbench/benchmarks/STREAM"]
+	path = gem5-workbench/benchmarks/STREAM
+	url = https://github.com/jeffhammond/STREAM
+[submodule "gem5-workbench/benchmarks/tinymembench"]
+	path = gem5-workbench/benchmarks/tinymembench
+	url = https://github.com/ssvb/tinymembench
