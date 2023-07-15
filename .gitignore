@@ -1,3 +1,4 @@
 .ccls-cache
+*/.ccls-cache
 gem5-workbench/build/*
 gem5-workbench/m5out/*

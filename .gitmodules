@@ -10,3 +10,9 @@
 [submodule "gem5-workbench/benchmarks/tinymembench"]
 	path = gem5-workbench/benchmarks/tinymembench
 	url = https://github.com/ssvb/tinymembench
+[submodule "epi-gem5"]
+	path = epi-gem5
+	url = https://gitlab.jsc.fz-juelich.de/falquez1/epi-gem5.git
+[submodule "gem5-workbench/benchmarks/NPB3.0-omp-C"]
+	path = gem5-workbench/benchmarks/NPB3.0-omp-C
+	url = https://github.com/benchmark-subsetting/NPB3.0-omp-C
