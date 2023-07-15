@@ -2,3 +2,5 @@
 */.ccls-cache
 gem5-workbench/build/*
 gem5-workbench/m5out/*
+gem5-workbench/binaries/*
+*.build.log

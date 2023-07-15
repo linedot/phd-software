@@ -1,0 +1,27 @@
+diff --git a/Makefile b/Makefile
+index 7746d86..87ef5fb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,7 @@
+-CC = gcc
++CC = riscv64-linux-gnu-gcc
+ CFLAGS = -O2 -fopenmp
+ 
+-FC = gfortran
++FC = riscv64-linux-gnu-gfortran
+ FFLAGS = -O2 -fopenmp
+ 
+ all: stream_f.exe stream_c.exe
+@@ -9,10 +9,10 @@ all: stream_f.exe stream_c.exe
+ stream_f.exe: stream.f mysecond.o
+ 	$(CC) $(CFLAGS) -c mysecond.c
+ 	$(FC) $(FFLAGS) -c stream.f
+-	$(FC) $(FFLAGS) stream.o mysecond.o -o stream_f.exe
++	$(FC) $(FFLAGS) -static stream.o mysecond.o -o stream_f.exe
+ 
+ stream_c.exe: stream.c
+-	$(CC) $(CFLAGS) stream.c -o stream_c.exe
++	$(CC) $(CFLAGS) -static stream.c -o stream_c.exe
+ 
+ clean:
+ 	rm -f stream_f.exe stream_c.exe *.o
