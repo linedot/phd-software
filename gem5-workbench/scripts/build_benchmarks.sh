@@ -22,9 +22,6 @@ bmark_dir=$wb_dir/benchmarks
 bin_dir=$wb_dir/binaries
 patch_dir=$wb_dir/patches
 
-mkdir -p $bin_dir/arm
-mkdir -p $bin_dir/riscv
-
 function build_stream()
 {
     outdir=$1
@@ -108,104 +105,60 @@ function build_npb()
     done
 )} 
 
-## ======= ARM =======
+check_success(){
+    if [ $1 -ne 0 ]; then
+        echo "FAILED"
+        exit -1
+    else
+        echo "SUCCESS"
+    fi
+}
 
-echo Building ARM binaries
-echo
+arch_list=(aarch64 riscv64)
+declare -A arch_c_compilers
+declare -A arch_cxx_compilers
+declare -A arch_compile_flags
 
-export CC=aarch64-linux-gnu-gcc
-export CXX=aarch64-linux-gnu-g++
+arch_c_compilers[aarch64]=aarch64-linux-gnu-gcc
+arch_cxx_compilers[aarch64]=aarch64-linux-gnu-g++
+arch_compile_flags[aarch64]=armv8.2-a+sve
 
-arch_bin_dir=$bin_dir/arm
+arch_c_compilers[riscv64]=riscv64-linux-gnu-gcc
+arch_cxx_compilers[riscv64]=riscv64-linux-gnu-g++
+arch_compile_flags[riscv64]=rv64imafdcv
 
-# ---- STREAM ----
-stream_patches=( "STREAM-aarch64-static.patch" )
-stream_logfile=$arch_bin_dir/STREAM.build.log
+for arch in "${arch_list[@]}"; do
 
-echo -n "Building STREAM (logfile: $stream_logfile) ..."
-build_stream $arch_bin_dir > $stream_logfile 2>&1 
-stream_success=$?
-if [ ${stream_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
+    echo "Building $arch binaries"
+    echo
 
-# ---- tinymembench ----
-tinymembench_patches=( "tinymembench-static.patch" )
-tinymembench_logfile=$arch_bin_dir/tinymembench.build.log
+    export CC="${arch_c_compilers[$arch]}"
+    export CXX="${arch_cxx_compilers[$arch]}"
 
-echo -n "Building tinymembench (logfile: $tinymembench_logfile) ..."
-build_tinymembench $arch_bin_dir > $tinymembench_logfile 2>&1 
-tinymembench_success=$?
-if [ ${tinymembench_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
+    arch_bin_dir=$bin_dir/${arch}
+    mkdir -p $arch_bin_dir
 
-# ---- NPB ----
-npb_patches=()
-npb_logfile=$arch_bin_dir/npb.build.log
-echo -n "Building NAS Parallel Benchmarks (logfile: $npb_logfile) ..."
-build_npb $arch_bin_dir $CC "armv8.2-a+sve" > $npb_logfile 2>&1 
-npb_success=$?
-if [ ${npb_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
+    # ---- STREAM ----
+    stream_patches=( "STREAM-${arch}-static.patch" )
+    stream_logfile=$arch_bin_dir/STREAM.build.log
 
-## ======= RISCV =======
+    echo -n "Building STREAM (logfile: $stream_logfile) ..."
+    build_stream $arch_bin_dir > $stream_logfile 2>&1 
+    check_success $?
 
-echo Building RISCV binaries
-echo
+    # ---- tinymembench ----
+    tinymembench_patches=( "tinymembench-static.patch" )
+    tinymembench_logfile=$arch_bin_dir/tinymembench.build.log
 
-export CC=riscv64-linux-gnu-gcc
-export CXX=riscv64-linux-gnu-g++
+    echo -n "Building tinymembench (logfile: $tinymembench_logfile) ..."
+    build_tinymembench $arch_bin_dir > $tinymembench_logfile 2>&1 
+    check_success $?
 
-arch_bin_dir=$bin_dir/riscv
+    # ---- NPB ----
+    npb_patches=()
+    npb_logfile=$arch_bin_dir/npb.build.log
+    echo -n "Building NAS Parallel Benchmarks (logfile: $npb_logfile) ..."
+    build_npb $arch_bin_dir $CC "${arch_compile_flags[$arch]}" > $npb_logfile 2>&1 
+    check_success $?
 
-# ---- STREAM ----
-stream_patches=( "STREAM-riscv64-static.patch" )
-stream_logfile=$arch_bin_dir/STREAM.build.log
-
-echo -n "Building STREAM (logfile: $stream_logfile) ..."
-build_stream $arch_bin_dir > $stream_logfile 2>&1 
-stream_success=$?
-if [ ${stream_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
-
-# ---- tinymembench ----
-tinymembench_patches=( "tinymembench-static.patch" )
-tinymembench_logfile=$arch_bin_dir/tinymembench.build.log
-
-echo -n "Building tinymembench (logfile: $tinymembench_logfile) ..."
-build_tinymembench $arch_bin_dir > $tinymembench_logfile 2>&1 
-tinymembench_success=$?
-if [ ${tinymembench_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
-
-# ---- NPB ----
-npb_patches=()
-npb_logfile=$arch_bin_dir/npb.build.log
-echo -n "Building NAS Parallel Benchmarks (logfile: $npb_logfile) ..."
-build_npb $arch_bin_dir $CC "rv64imafdcv" > $npb_logfile 2>&1 
-npb_success=$?
-if [ ${npb_success} -ne 0 ]; then
-    echo "FAILED"
-    exit -1
-else
-    echo "SUCCESS"
-fi
+done;
