@@ -3,6 +3,8 @@
 correct_directory=1
 wb_dir=$(pwd)
 
+# Checking if we're in the workbench directory of the repo
+# --------------------------------------------------------
 if [[ "gem5-workbench" != "$(basename ${wb_dir})" ]]; then
     correct_directory=0
 fi
@@ -17,11 +19,14 @@ if [ "$correct_directory" -eq "0" ]; then
     echo "Not running from gem5-workbench/something wrong with directory"
     exit -1
 fi
+# --------------------------------------------------------
 
 bmark_dir=$wb_dir/benchmarks
 bin_dir=$wb_dir/binaries
 patch_dir=$wb_dir/patches
 
+
+# build STREAM benchmark
 function build_stream()
 {
     outdir=$1
@@ -44,6 +49,7 @@ function build_stream()
     done
 )} 
 
+# build tinymembench benchmark
 function build_tinymembench()
 {
     outdir=$1
@@ -66,6 +72,7 @@ function build_tinymembench()
     done
 )} 
 
+# build NAS Parallel benchmarks
 function build_npb()
 {
     outdir=$1
@@ -114,6 +121,10 @@ check_success(){
     fi
 }
 
+
+# Arch-dependent stuff here
+# ========================================
+
 arch_list=(aarch64 riscv64)
 declare -A arch_c_compilers
 declare -A arch_cxx_compilers
@@ -126,6 +137,9 @@ arch_compile_flags[aarch64]=armv8.2-a+sve
 arch_c_compilers[riscv64]=riscv64-linux-gnu-gcc
 arch_cxx_compilers[riscv64]=riscv64-linux-gnu-g++
 arch_compile_flags[riscv64]=rv64imafdcv
+
+# End of Arch-dependent stuff
+# ========================================
 
 for arch in "${arch_list[@]}"; do
 
