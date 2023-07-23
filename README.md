@@ -49,10 +49,12 @@ libm5/m5 util needs to be build in-source and also uses different ISA names for 
 ## BUILD ARM gem5 + m5 lib
 
 ```
-cd phd-software/gem5
+cd phd-software
+AARCH64_TOOLCHAIN=$(pwd)/gem5-workbench/toolchains/aarch64
+cd gem5
 scons ../gem5-workbench/build/ARM/gem5.opt -j$(nproc) PROTOCOL=CHI
 cd gem5/util/m5
-PATH=$(pwd)/toolchains/aarch64/bin/:$PATH scons arm64.CROSS_COMPILE=aarch64-linux-gnu- build/arm64/out/m5
+PATH=$AARCH64_TOOLCHAIN/bin/:$PATH scons arm64.CROSS_COMPILE=aarch64-linux-gnu- build/arm64/out/m5
 cp -r build/arm64/out/m5 ../../../gem5-workbench/build/ARM/
 ```
 
@@ -62,10 +64,12 @@ cp -r build/arm64/out/m5 ../../../gem5-workbench/build/ARM/
 Building M5 lib requires static `libstdc++.a`. On my distro (Arch Linux), while there is a riscv64-linux-gnu-gcc package, it does not contain a static libstdc++ (the aarch64 version does), so I had to download the PKGBUILD, edit it to add the `staticlibs` option and rebuild it.
 
 ```
-cd phd-software/gem5
+cd phd-software
+RISCV64_TOOLCHAIN=$(pwd)/gem5-workbench/toolchains/riscv64
+cd gem5
 scons ../gem5-workbench/build/RISCV/gem5.opt -j$(nproc) PROTOCOL=CHI
 cd gem5/util/m5
-PATH=$(pwd)/toolchains/riscv64/bin/:$PATH scons riscv.CROSS_COMPILE=riscv64-linux-gnu- build/riscv/out/m5
+PATH=$RISCV64_TOOLCHAIN/bin/:$PATH scons riscv.CROSS_COMPILE=riscv64-linux-gnu- build/riscv/out/m5
 cp -r build/riscv/out/m5 ../../../gem5-workbench/build/RISCV/
 ```
 
@@ -81,5 +85,6 @@ cd ../gem5-workbench
 # Build benchmarks with our cross-toolchains:
 
 ```
+cd phd-software/gem5-workbench
 PATH=$(pwd)/toolchains/riscv64/bin/:$(pwd)/toolchains/aarch64/bin/:$PATH ./scripts/build_benchmarks.sh
 ```
