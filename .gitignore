@@ -5,3 +5,4 @@ gem5-workbench/m5out/*
 gem5-workbench/binaries/*
 gem5-workbench/toolchains/*
 *.build.log
+*.swp

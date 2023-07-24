@@ -289,8 +289,9 @@ cd glibc-build
 logfile="${build_dir}/glibc-configure.log"
 echo "Configuring GLIBC. Log: ${logfile}"
 export CC="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-gcc"
+export CXX="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-g++"
 oldpath=$PATH
-export PATH=${out_dir}/${arch}-linux-gnu/bin/:$PATH
+export PATH="${out_dir}/${arch}-linux-gnu/bin/:$PATH"
 ../glibc-${version_glibc}/configure --prefix=/usr \
                                     --target="${arch}-linux-gnu" \
                                     --with-glibc-version=${version_glibc} \
