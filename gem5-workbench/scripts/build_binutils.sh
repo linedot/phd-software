@@ -88,6 +88,16 @@ echo "version          = ${version}"
 mkdir -p ${build_dir}
 cd ${build_dir}
 
+
+# Download GNU's keyring and verify with that
+gnu_keyring_file=gnu-keyring.gpg
+if [ ! -e "${gnu_keyring_file}" ]; then
+    echo "Downloading ${gnu_keyring_file}"
+    curl -LO https://ftp.gnu.org/gnu/${gnu_keyring_file}
+else
+    echo "${gnu_keyring_file} already exists, using that file"
+fi
+
 archive_file=binutils-${version}.tar.xz
 if [ ! -e "$archive_file" ]; then
     echo "Downloading ${archive_file}"
@@ -106,7 +116,7 @@ fi
 
 logfile="${build_dir}/binutils-gpg-verify.log"
 echo "Verifying ${archive_file} with ${signature_file}. Log: ${logfile}"
-gpg --keyserver https://keyserver.ubuntu.com --keyserver-options auto-key-retrieve --verify ${signature_file} ${archive_file} > $logfile 2>&1
+gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${signature_file} ${archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${archive_file} with ${signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
@@ -132,6 +142,8 @@ cd binutils-${version}
             --enable-ld=default \
             --enable-multilib \
             --enable-plugins \
+            --without-msgpack \
+            --without-debuginfod \
             --with-gnu-as \
             --with-gnu-ld \
             --with-sysroot=$sysroot \

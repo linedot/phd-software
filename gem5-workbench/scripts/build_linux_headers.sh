@@ -124,7 +124,7 @@ archive_file=${unxzed_archive_file}
 
 logfile="${build_dir}/linux-headers-gpg-verify.log"
 echo "verifying ${archive_file} with ${signature_file}. Log: ${logfile}"
-gpg --keyserver https://keyserver.ubuntu.com --keyserver-options auto-key-retrieve --verify ${signature_file} ${archive_file} 2>&1 > $logfile
+gpg --keyserver hkps://keyserver.ubuntu.com --keyserver-options auto-key-retrieve --verify ${signature_file} ${archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${archive_file} with ${signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
@@ -148,7 +148,7 @@ if [ 0 -ne $? ]; then
 fi
 
 logfile="${build_dir}/linux-headers-headers_install.log"
-echo "cleaning up linux headers. Log: ${logfile}"
+echo "Installing linux headers. Log: ${logfile}"
 make INSTALL_HDR_PATH="${sysroot}" ARCH=${kernel_arch} V=0 -j $(nproc) headers_install 2>&1 > $logfile
 if [ 0 -ne $? ]; then
     echo "Failed to install linux headers"

@@ -214,6 +214,20 @@ else
     echo "No patches for GLIBC, proceeding as is"
 fi
 
+
+#Check binutils
+bu_bins=($(ls ${out_dir}/bin/${arch}-linux-gnu-*))
+if [ ${#bu_bins[@]} -ne 0 ]; then
+    for bin in "${bu_bins[@]}"; do
+        echo "Found ${bin}"
+    done
+else
+    echo "Binutils are missing! Aborting"
+    exit -1
+fi
+
+
+
 cd gcc-${version_gcc}
 logfile="${build_dir}/gcc-download_prerequisites.log"
 echo "Downloading GCC prerequisites. Log: ${logfile}"
@@ -224,52 +238,51 @@ if [ -d gcc-build ]; then
     rm -rf gcc-build
 fi
 mkdir gcc-build
-cd gcc-build
-logfile="${build_dir}/gcc-stage1-configure.log"
-echo "Configuring stage 1 GCC. Log: ${logfile}"
-CC="ccache gcc" && \
-CXX="ccache g++" && \
-../gcc-${version_gcc}/configure --prefix="${build_dir}/stage1-gcc" \
-                                --target="${arch}-linux-gnu" \
-                                --with-local-prefix=/usr \
-                                --with-sysroot=$sysroot \
-                                --with-build-sysroot=$sysroot \
-                                --with-native-system-header-dir=/include \
-                                --disable-multilib \
-                                --without-headers \
-                                --with-newlib \
-                                --enable-languages=c,c++ \
-                                --disable-nls \
-                                --disable-shared \
-                                --disable-decimal-float \
-                                --disable-threads \
-                                --disable-libatomic \
-                                --disable-libgomp \
-                                --disable-libquadmath \
-                                --disable-libssp \
-                                --disable-libvtv \
-                                --disable-libstdcxx > $logfile 2>&1
-if [ 0 -ne $? ]; then
-    echo "Failed to configure stage 1 GCC"
-    exit -1
-fi
-logfile="${build_dir}/gcc-stage1-build.log"
-echo "Building stage 1 GCC. Log: ${logfile}"
-CC="ccache gcc" && \
-CXX="ccache g++" && \
-make -j $(nproc) all-gcc all-target-libgcc > $logfile 2>&1
-if [ 0 -ne $? ]; then
-    echo "Failed to build stage 1 GCC"
-    exit -1
-fi
-logfile="${build_dir}/gcc-stage1-install.log"
-echo "Installing stage 1 GCC. Log: ${logfile}"
-make -j $(nproc) install-gcc install-target-libgcc > $logfile 2>&1
-if [ 0 -ne $? ]; then
-    echo "Failed to install stage 1 GCC"
-    exit -1
-fi
-cd ..
+#cd gcc-build
+#logfile="${build_dir}/gcc-stage1-configure.log"
+#echo "Configuring stage 1 GCC. Log: ${logfile}"
+#export CC="ccache gcc"
+#export CXX="ccache g++"
+#export PATH="${out_dir}/bin/:$PATH"
+#../gcc-${version_gcc}/configure --prefix="${build_dir}/stage1-gcc" \
+#                                --target="${arch}-linux-gnu" \
+#                                --with-local-prefix=/usr \
+#                                --with-sysroot=$sysroot \
+#                                --with-build-sysroot=$sysroot \
+#                                --with-native-system-header-dir=/include \
+#                                --disable-multilib \
+#                                --without-headers \
+#                                --with-newlib \
+#                                --enable-languages=c,c++ \
+#                                --disable-nls \
+#                                --disable-shared \
+#                                --disable-decimal-float \
+#                                --disable-threads \
+#                                --disable-libatomic \
+#                                --disable-libgomp \
+#                                --disable-libquadmath \
+#                                --disable-libssp \
+#                                --disable-libvtv \
+#                                --disable-libstdcxx > $logfile 2>&1
+#if [ 0 -ne $? ]; then
+#    echo "Failed to configure stage 1 GCC"
+#    exit -1
+#fi
+#logfile="${build_dir}/gcc-stage1-build.log"
+#echo "Building stage 1 GCC. Log: ${logfile}"
+#make -j $(nproc) all-gcc all-target-libgcc > $logfile 2>&1
+#if [ 0 -ne $? ]; then
+#    echo "Failed to build stage 1 GCC"
+#    exit -1
+#fi
+#logfile="${build_dir}/gcc-stage1-install.log"
+#echo "Installing stage 1 GCC. Log: ${logfile}"
+#make -j $(nproc) install-gcc install-target-libgcc > $logfile 2>&1
+#if [ 0 -ne $? ]; then
+#    echo "Failed to install stage 1 GCC"
+#    exit -1
+#fi
+#cd ..
 
 if [ -d glibc-build ]; then
     echo "Removing old glibc-build directory"
@@ -279,8 +292,9 @@ mkdir glibc-build
 cd glibc-build
 logfile="${build_dir}/glibc-configure.log"
 echo "Configuring GLIBC. Log: ${logfile}"
-CC="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-gcc" && \
-PATH=${outdir}/${arch}-linux-gnu/bin/:$PATH && \
+export CC="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-gcc"
+oldpath=$PATH
+export PATH=${out_dir}/${arch}-linux-gnu/bin/:$PATH
 ../glibc-${version_glibc}/configure --prefix=/usr \
                                     --target="${arch}-linux-gnu" \
                                     --with-glibc-version=${version_glibc} \
@@ -314,12 +328,13 @@ if [ 0 -ne $? ]; then
     exit -1
 fi
 cd ..
+export PATH=$oldpath
 
 logfile="${build_dir}/gcc-stage2-configure.log"
 echo "Configuring stage 2 (final) GCC. Log: ${logfile}"
-cd gcc-build && rm -rf * && \
-CC="ccache gcc" && \
-CXX="ccache g++" && \
+cd gcc-build && rm -rf *
+export CC="ccache gcc"
+export CXX="ccache g++"
 ../gcc-${version_gcc}/configure --prefix="${out_dir}" \
                                 --target="${arch}-linux-gnu" \
                                 --disable-multilib \
