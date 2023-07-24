@@ -154,14 +154,14 @@ if [ 0 -ne $? ]; then
 fi
 logfile="${build_dir}/binutils-build.log"
 echo "Building binutils. Log: ${logfile}"
-make -j $(nproc) > ${logfile} 2>&1
+make MAKEINFO=true -j $(nproc) > ${logfile} 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build binutils"
     exit -1
 fi
 logfile="${build_dir}/binutils-install.log"
 echo "Installing binutils. Log: ${logfile}"
-make -j $(nproc) install > ${logfile} 2>&1
+make MAKEINFO=true -j $(nproc) install > ${logfile} 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to install binutils"
     exit -1
