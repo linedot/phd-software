@@ -217,11 +217,7 @@ fi
 
 #Check binutils
 bu_bins=($(ls ${out_dir}/bin/${arch}-linux-gnu-*))
-if [ ${#bu_bins[@]} -ne 0 ]; then
-    for bin in "${bu_bins[@]}"; do
-        echo "Found ${bin}"
-    done
-else
+if [ ${#bu_bins[@]} -eq 0 ]; then
     echo "Binutils are missing! Aborting"
     exit -1
 fi
@@ -238,51 +234,51 @@ if [ -d gcc-build ]; then
     rm -rf gcc-build
 fi
 mkdir gcc-build
-#cd gcc-build
-#logfile="${build_dir}/gcc-stage1-configure.log"
-#echo "Configuring stage 1 GCC. Log: ${logfile}"
-#export CC="ccache gcc"
-#export CXX="ccache g++"
-#export PATH="${out_dir}/bin/:$PATH"
-#../gcc-${version_gcc}/configure --prefix="${build_dir}/stage1-gcc" \
-#                                --target="${arch}-linux-gnu" \
-#                                --with-local-prefix=/usr \
-#                                --with-sysroot=$sysroot \
-#                                --with-build-sysroot=$sysroot \
-#                                --with-native-system-header-dir=/include \
-#                                --disable-multilib \
-#                                --without-headers \
-#                                --with-newlib \
-#                                --enable-languages=c,c++ \
-#                                --disable-nls \
-#                                --disable-shared \
-#                                --disable-decimal-float \
-#                                --disable-threads \
-#                                --disable-libatomic \
-#                                --disable-libgomp \
-#                                --disable-libquadmath \
-#                                --disable-libssp \
-#                                --disable-libvtv \
-#                                --disable-libstdcxx > $logfile 2>&1
-#if [ 0 -ne $? ]; then
-#    echo "Failed to configure stage 1 GCC"
-#    exit -1
-#fi
-#logfile="${build_dir}/gcc-stage1-build.log"
-#echo "Building stage 1 GCC. Log: ${logfile}"
-#make -j $(nproc) all-gcc all-target-libgcc > $logfile 2>&1
-#if [ 0 -ne $? ]; then
-#    echo "Failed to build stage 1 GCC"
-#    exit -1
-#fi
-#logfile="${build_dir}/gcc-stage1-install.log"
-#echo "Installing stage 1 GCC. Log: ${logfile}"
-#make -j $(nproc) install-gcc install-target-libgcc > $logfile 2>&1
-#if [ 0 -ne $? ]; then
-#    echo "Failed to install stage 1 GCC"
-#    exit -1
-#fi
-#cd ..
+cd gcc-build
+logfile="${build_dir}/gcc-stage1-configure.log"
+echo "Configuring stage 1 GCC. Log: ${logfile}"
+export CC="ccache gcc"
+export CXX="ccache g++"
+export PATH="${out_dir}/bin/:$PATH"
+../gcc-${version_gcc}/configure --prefix="${build_dir}/stage1-gcc" \
+                                --target="${arch}-linux-gnu" \
+                                --with-local-prefix=/usr \
+                                --with-sysroot=$sysroot \
+                                --with-build-sysroot=$sysroot \
+                                --with-native-system-header-dir=/include \
+                                --disable-multilib \
+                                --without-headers \
+                                --with-newlib \
+                                --enable-languages=c,c++ \
+                                --disable-nls \
+                                --disable-shared \
+                                --disable-decimal-float \
+                                --disable-threads \
+                                --disable-libatomic \
+                                --disable-libgomp \
+                                --disable-libquadmath \
+                                --disable-libssp \
+                                --disable-libvtv \
+                                --disable-libstdcxx > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to configure stage 1 GCC"
+    exit -1
+fi
+logfile="${build_dir}/gcc-stage1-build.log"
+echo "Building stage 1 GCC. Log: ${logfile}"
+make -j $(nproc) all-gcc all-target-libgcc > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to build stage 1 GCC"
+    exit -1
+fi
+logfile="${build_dir}/gcc-stage1-install.log"
+echo "Installing stage 1 GCC. Log: ${logfile}"
+make -j $(nproc) install-gcc install-target-libgcc > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to install stage 1 GCC"
+    exit -1
+fi
+cd ..
 
 if [ -d glibc-build ]; then
     echo "Removing old glibc-build directory"
