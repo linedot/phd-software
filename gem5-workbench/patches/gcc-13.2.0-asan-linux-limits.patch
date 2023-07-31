@@ -1,0 +1,15 @@
+diff --color -urN gcc-13.1.0/libsanitizer/asan/asan_linux.cpp gcc-13.1.0-patched/libsanitizer/asan/asan_linux.cpp
+--- gcc-13.1.0/libsanitizer/asan/asan_linux.cpp	2023-04-26 09:09:43.000000000 +0200
++++ gcc-13.1.0-patched/libsanitizer/asan/asan_linux.cpp	2023-07-23 14:51:12.186958890 +0200
+@@ -31,7 +31,11 @@
+ #include <sys/types.h>
+ #include <dlfcn.h>
+ #include <fcntl.h>
++#if SANITIZER_LINUX
++#include <linux/limits.h>
++#else
+ #include <limits.h>
++#endif
+ #include <pthread.h>
+ #include <stdio.h>
+ #include <unistd.h>
