@@ -61,13 +61,15 @@ total_mem_mb=$(free -m | grep -oP '\d+' | head -n 1)
 # free outputs MiB, assumption is 1st number is total memory
 # Let's be conservative and use up to 60% of the total memory
 threads_mem=$((total_mem_mb*6/10/120))
+echo system has enough memory for $threads_mem simulation processes
 threads_cpu=$(nproc)
+echo system has $threads_cpu hw threads
 
 # Use the smaller of the two as number of jobs
 num_jobs=$(( threads_mem < threads_cpu ? threads_mem : threads_cpu ))
 
 
-echo "Running gem5 simulations in parallel"
+echo "Running gem5 simulations in parallel with ${num_jobs} processes"
 parallel -j $num_jobs run_gem5 ::: {1..8} ::: {1..30} ::: {4,6,10} ::: {1,2,4} ::: $vlen ::: $assoc ::: $dw ::: $cw ::: $base_dir
 echo "Finished all simulations"
 
