@@ -204,7 +204,7 @@ if __name__ == "__m5_main__":
     root = Root(full_system=False, system=system)
 
     
-    m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}")
+    m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}_l1as{assoc}")
     print(f"gem5 output directory: {m5.options.outdir}")
     if os.path.exists(m5.options.outdir):
         print(f"Path exists, removing")
