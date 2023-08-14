@@ -1,5 +1,5 @@
 from m5.objects import *
-from common.cores.arm.O3_ARM_v7a import *
+#from common.cores.arm.O3_ARM_v7a import *
 from common.Caches import *
 
 # Sources for this configuration:

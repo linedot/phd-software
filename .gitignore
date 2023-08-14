@@ -1,8 +1,14 @@
 .ccls-cache
 */.ccls-cache
 gem5-workbench/build/*
+gem5-workbench/benchmarks/gemmbench_*cpp
+gem5-workbench/benchmarks/Makefile.*
+gem5-workbench/benchmarks/make_*.log
 gem5-workbench/m5out/*
 gem5-workbench/binaries/*
 gem5-workbench/toolchains/*
+gem5-workbench/slurm*out
+gem5-workbench/gem5run*
 *.build.log
 *.swp
+__pycache__
