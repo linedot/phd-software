@@ -44,6 +44,7 @@ def lcm(a, b):
     return abs(a*b) // math.gcd(a, b)
 
 def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
+              assoc:int,
               decode_width:int, commit_width:int,
               fetch_buf_size: int):
     cpu = O3_ARM_Neoverse_N1()
@@ -71,6 +72,7 @@ def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
 
     cpu.icache = O3_ARM_Neoverse_N1_ICache()
     cpu.dcache = O3_ARM_Neoverse_N1_DCache()
+    cpu.dcache.assoc = assoc
 
     cpu.icache.cpu_side = cpu.icache_port
     cpu.dcache.cpu_side = cpu.dcache_port
@@ -161,6 +163,7 @@ if __name__ == "__m5_main__":
     parser.add_argument("--simd_lat", metavar="simd_lat", help='SIMD latency in cycles', required=True)
     parser.add_argument("--simd_count", metavar="simd_count", help='SIMD FU count', required=True)
     parser.add_argument("--simd_width", metavar="simd_width", help='SIMD width in bits', required=True)
+    parser.add_argument("--assoc", metavar="assoc", help='L1D cache associativity', required=True)
     parser.add_argument("--decode_width", metavar="decode_width", help='Max instr. issued to RS', required=True)
     parser.add_argument("--commit_width", metavar="commit_width", help='Max instr. retired per cycle', required=True)
     parser.add_argument("--fetch_buf_size", metavar="fetch_buf_size", help='Fetch Buffer Size in Bytes', required=True)
@@ -174,6 +177,7 @@ if __name__ == "__m5_main__":
     simd_lat = int(args.simd_lat)
     simd_count = int(args.simd_count)
     simd_width = int(args.simd_width)
+    assoc = int(args.assoc)
     decode_width = int(args.decode_width)
     commit_width = int(args.commit_width)
     fetch_buf_size = int(args.fetch_buf_size)
@@ -182,6 +186,7 @@ if __name__ == "__m5_main__":
 
 
     cpu = setup_cpu(simd_lat=simd_lat, simd_count=simd_count, simd_width=simd_width,
+                    assoc=assoc,
                     decode_width=decode_width,
                     commit_width=commit_width,
                     fetch_buf_size=fetch_buf_size)
