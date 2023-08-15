@@ -30,6 +30,7 @@ int main(int argc, char* argv[])
 
     std::vector<$DT> adata;
     std::vector<$DT> bdata;
+    std::vector<$DT> cdata;
 
     constexpr auto mu = mem_use::$MEM;
     switch(mu)
@@ -37,6 +38,7 @@ int main(int argc, char* argv[])
     case mem_use::SAMEDATA:
         adata.resize(get_simd_size()/sizeof($DT));
         bdata.resize(get_simd_size()/sizeof($DT));
+        cdata.resize(get_simd_size()/sizeof($DT));
         break;
     // TODO: implement L1-bound calculations (also in the generator)
     case mem_use::L1:
@@ -44,11 +46,13 @@ int main(int argc, char* argv[])
         // TODO: This is for SVE on A64FX
         adata.resize(get_simd_size()/sizeof($DT)*$VECINMR*iterations*$UNROLL);
         bdata.resize($NR*iterations*$UNROLL);
+        cdata.resize(get_simd_size()/sizeof($DT)*$VECINMR*$NR);
         break;
     }
     
     $DT * a = adata.data();
     $DT * b = bdata.data();
+    $DT * c = bdata.data();
 
     auto flops = get_simd_size()/sizeof($DT)*2.0*static_cast<double>($VECINMR*$NR*$UNROLL)*iterations;
 
