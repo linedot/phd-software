@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
     $DT * b = bdata.data();
     $DT * c = bdata.data();
 
-    auto flops = get_simd_size()/sizeof($DT)*2.0*static_cast<double>($VECINMR*$NR*$UNROLL)*iterations;
+    auto flops = get_simd_size()/sizeof($DT)*2.0*static_cast<double>($VECINMR*$NR*$UNROLL)*iterations+3.0*$NR*$VECINMR;
 
     std::cout << "kernel size: $MR x $NR\n";
     std::cout << "data type: $DT\n";
