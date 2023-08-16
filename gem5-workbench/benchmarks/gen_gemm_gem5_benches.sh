@@ -89,7 +89,7 @@ cat <<EOT >> $makefile_rvv
 ${RISCV64_BINARIES_PATH}/${bench_name}: ${bench_name}_rvv.cpp
 	${RISCV64_GCC} \
 	    -static \
-	    -march=rv64imafdcv -Ofast \
+	    -march=rv64imafdcv_zicbop -Ofast \
 	    -o ${RISCV64_BINARIES_PATH}/$bench_name ${bench_name}_rvv.cpp \
 	    -I ${GEM5_PATH}/include/ -L ${GEM5_PATH}/util/m5/build/riscv/out/ -lm5
 
