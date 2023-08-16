@@ -65,9 +65,11 @@ def main():
 
     df_good["l1bw"] = df_good["bytesRead"]/df_good["system.cpu.numCycles"]
 
-    df_good["ukrsize"] = df_good["mr"]*df_good["nr"]
+    #df_good["ukrsize"] = df_good["mr"]*df_good["nr"]
+    #df_good=df_good.sort_values("ukrsize")
+    #df_good.reset_index(drop = True, inplace = True)
 
-    df_good=df_good.sort_values("ukrsize")
+    df_good=df_good.sort_values(["mr","nr"])
     df_good.reset_index(drop = True, inplace = True)
 
     print(df_good)
