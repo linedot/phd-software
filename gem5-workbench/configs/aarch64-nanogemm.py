@@ -55,14 +55,11 @@ def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
     cpu.fetchWidth=decode_width
     cpu.commitWidth=commit_width
 
-    cpu.fetchBufferSize=fetch_buf_size
+    cpu.numROBEntries = 256 # taken from (1) 
+    cpu.numPhysFloatRegs = 256 # taken from (4)
+    cpu.numPhysVecRegs = 256 # taken from (4) 
 
-    for fu in cpu.fuPool.FUList:
-        if str(fu.opList[0].opClass).startswith("Simd"):
-            print(f"SIMD count: {fu.count}")
-        for op in fu.opList:
-            if ('SimdFloatMultAcc' == str(op.opClass)):
-                print(f"SIMD latency: {op.opLat}")
+    cpu.fetchBufferSize=fetch_buf_size
 
     for fu in cpu.fuPool.FUList:
         for op in fu.opList:
@@ -73,6 +70,7 @@ def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
     cpu.icache = O3_ARM_Neoverse_N1_ICache()
     cpu.dcache = O3_ARM_Neoverse_N1_DCache()
     cpu.dcache.assoc = assoc
+    cpu.dcache.size = "32kB"
 
     cpu.icache.cpu_side = cpu.icache_port
     cpu.dcache.cpu_side = cpu.dcache_port
@@ -191,14 +189,6 @@ if __name__ == "__m5_main__":
                     commit_width=commit_width,
                     fetch_buf_size=fetch_buf_size)
 
-
-
-    for fu in cpu.fuPool.FUList:
-        if str(fu.opList[0].opClass).startswith("Simd"):
-            print(f"SIMD count: {fu.count}")
-        for op in fu.opList:
-            if ('SimdFloatMultAcc' == str(op.opClass)):
-                print(f"SIMD latency: {op.opLat}")
 
     system = setup_system(mr=mr, nr=nr, simd_width=simd_width, cpu=cpu)
     root = Root(full_system=False, system=system)
