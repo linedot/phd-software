@@ -162,7 +162,10 @@ def extract_data(basedir: os.PathLike):
             df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
     df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
     data_size = 8 # double
-    df["bytesRead"] = df["mr"]*df["kc"]*(df["vlen"]/8) + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*(df["vlen"]/8)
+    df["bytesRead"] = df["mr"]*df["kc"]*(df["vlen"]/8) + \
+                      df["kc"]*df["nr"]*data_size + \
+                      df["mr"]*df["nr"]*(df["vlen"]/8 + \
+                      2*data_size)
     df["bytesWritten"] = df["mr"]*df["nr"]*(df["vlen"]/8)
     print("Finished converting data to pandas.DataFrame")
 

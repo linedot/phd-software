@@ -32,6 +32,12 @@ int main(int argc, char* argv[])
     std::vector<$DT> bdata;
     std::vector<$DT> cdata;
 
+    $DT alpha;
+    $DT beta;
+
+    $DT *alpha_ptr = &alpha;
+    $DT *beta_ptr = &beta;
+
     constexpr auto mu = mem_use::$MEM;
     switch(mu)
     {

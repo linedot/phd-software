@@ -40,6 +40,8 @@ def main():
 
     results = []
     for lat,vlen,nfu in combinations:
+        if 0 == len(df_assoc4[(df_assoc4["nfu"] == nfu) & (df_assoc4["lat"] == lat) & (df_assoc4["vlen"] == vlen)]):
+            continue
 
         result = {}
         print(f"Combination ({nfu},{vlen},{lat})")

@@ -70,7 +70,7 @@ num_jobs=$(( threads_mem < threads_cpu ? threads_mem : threads_cpu ))
 
 
 echo "Running gem5 simulations in parallel with ${num_jobs} processes"
-parallel -j $num_jobs run_gem5 ::: {1..8} ::: {1..30} ::: {4,6,10} ::: {1,2,4} ::: $vlen ::: $assoc ::: $dw ::: $cw ::: $base_dir
+parallel -u -j $num_jobs run_gem5 ::: {1..8} ::: {1..30} ::: {4,6,10} ::: {1,2,4} ::: $vlen ::: $assoc ::: $dw ::: $cw ::: $base_dir
 echo "Finished all simulations"
 
 fi
