@@ -120,7 +120,7 @@ def extract_data(basedir: os.PathLike):
     max_workers = min(os.cpu_count(),mr_nr_combination_count)
     print(f"Processing {mr_nr_combination_count} chunks of {per_mr_nr_count} combinations with {max_workers} concurrent workers")
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        mr_nr_done=0
+        mr_nr_done=1
         mr_nr_combos = []
         # TODO: build list of combinations and iterate in one loop?
         for mr in mr_list:
