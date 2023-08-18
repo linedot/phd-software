@@ -18,12 +18,13 @@ def main():
 
     df = pandas.read_hdf(args.hdf5file,key='gem5stats')
 
-    df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] + \
-            df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
-    df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
-    data_size = 8 # double
-    df["bytesRead"] = df["mr"]*df["kc"]*df["vlen"]/8 + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*data_size
-    df["bytesWritten"] = df["mr"]*df["nr"]*data_size
+    # Now handled by the extract script
+    #df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] + \
+    #        df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
+    #df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
+    #data_size = 8 # double
+    #df["bytesRead"] = df["mr"]*df["kc"]*df["vlen"]/8 + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*data_size
+    #df["bytesWritten"] = df["mr"]*df["nr"]*data_size
 
 
     df_assoc4 = df[df["assoc"] == 4]
@@ -69,11 +70,18 @@ def main():
         result["\\nrphysvmax"] = int(256-(1000-best["system.cpu.rename.max1000MinusVecFreeEntries"]))
         result["\\nrobmax"] = int(best["system.cpu.rob.maxNumInstsInROB"])
         result["\\nreservmax"] = int(120- best["system.cpu.numFreeEntriesDist::min_value"])
+        result["\\nbissuemax"] = best["system.cpu.numIssuedDist::max_value"]
         result["\\IPC"] = f"{best['system.cpu.ipc']:.1f}"
+        result["\\nbimipcrate"] = best["system.cpu.ipc"]/best["system.cpu.numIssuedDist::max_value"]
 
         results.append(result)
 
     df_results = pandas.DataFrame(results)
+
+    meanrate = df_results["\\nbimipcrate"].mean()
+    maxfactor = 1.0/df_results["\\nbimipcrate"].min()
+
+    print(f"IPC/issue avg: {meanrate}; up to {maxfactor} more issued than IPC")
     print(df_results.to_latex(index=False,
                               escape=False,
                               float_format="%.3f"))

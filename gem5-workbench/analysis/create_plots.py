@@ -22,12 +22,13 @@ def main():
 
     df = pandas.read_hdf(args.hdf5file,key='gem5stats')
 
-    df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
-            df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
-    df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
-    data_size = 8 # double
-    df["bytesRead"] = df["mr"]*df["kc"]*df["vlen"]/8 + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*data_size
-    df["bytesWritten"] = df["mr"]*df["nr"]*data_size
+    # Now handled by the extract script
+    #df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
+    #        df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
+    #df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
+    #data_size = 8 # double
+    #df["bytesRead"] = df["mr"]*df["kc"]*(df["vlen"]/8) + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*(df["vlen"]/8)
+    #df["bytesWritten"] = df["mr"]*df["nr"]*(df["vlen"]/8)
 
     df_good = df[df["efficiency"] > 0.95]
 
@@ -40,9 +41,9 @@ def main():
     
     df_good = df_good.groupby(["vlen"], group_keys=False).apply(lambda x: x.loc[x.efficiency.idxmax()])
 
-    print(df_good)
+    df_good["l1bw"] = (df_good["bytesRead"]+df_good["bytesWritten"])/df_good["system.cpu.numCycles"]
 
-    df_good["l1bw"] = df_good["bytesRead"]/df_good["system.cpu.numCycles"]
+    print(df_good[["mr","nr","kc","unroll","flops","minCyclesPossible","efficiency","bytesRead","bytesWritten","l1bw"]])
 
     plt.rcParams['text.usetex'] = True
     plt.rcParams.update({'font.size': 20})
@@ -72,7 +73,7 @@ def main():
     df_good=df_good.sort_values(["mr","nr"])
     df_good.reset_index(drop = True, inplace = True)
 
-    print(df_good)
+    print(df_good[["mr","nr","kc","unroll","flops","minCyclesPossible","efficiency","bytesRead","bytesWritten","l1bw"]])
 
     plt.rcParams['text.usetex'] = True
     plt.rcParams.update({'font.size': 20})
