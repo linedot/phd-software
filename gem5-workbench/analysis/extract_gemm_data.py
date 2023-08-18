@@ -145,12 +145,14 @@ def extract_data(basedir: os.PathLike):
             mr,nr = future_to_mrnr[future]
             try:
                 data = future.result()
-                print(f"processed {mr_nr_done*per_mr_nr_count}/{combination_count} combinations")
+                print(f"\rprocessed {mr_nr_done*per_mr_nr_count}/{combination_count} combinations",end='')
                 mr_nr_done+=1
             except Exception as exc:
                 print(f"Exception during processing of ({mr},{nr}) combos: {exc}")
             else:
                 alldata.extend(data)
+        # Because the progress string doesn't have a newline
+        print()
 
     print("Converting data to pandas.DataFrame")
     df = pandas.DataFrame(alldata)
