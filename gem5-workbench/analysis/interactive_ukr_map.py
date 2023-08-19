@@ -91,7 +91,8 @@ def main():
 
         ax.cla()
         sns.heatmap(df_map,ax=ax,cbar_ax=cbar_ax,vmin=0.0,vmax=1.0,
-                    cbar_kws={'label': 'max. efficiency'})
+                    cbar_kws={'label': 'max. efficiency'},
+                    cmap="PiYG")
         #fig.canvas.draw_idle()
 
     update_heatmap(0)
