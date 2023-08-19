@@ -1,5 +1,4 @@
 from m5.objects import *
-#from common.cores.arm.O3_ARM_v7a import *
 from common.Caches import *
 
 # Sources for this configuration:
@@ -111,10 +110,20 @@ class O3_ARM_Neoverse_N1_Complex_Int(FUDesc):
     count = 1 # 1 units
 
 # This class refers to Load/Store0/1 (symbol L in Neoverse guide table 3-1)
-class O3_ARM_Neoverse_N1_LoadStore(FUDesc):
+#class O3_ARM_Neoverse_N1_LoadStore(FUDesc):
+#    opList = [ OpDesc(opClass='MemRead'), 
+#               OpDesc(opClass='FloatMemRead'),
+#               OpDesc(opClass='MemWrite'),
+#               OpDesc(opClass='FloatMemWrite') ]
+#    count = 2 #
+
+class O3_ARM_Neoverse_N1_Load(FUDesc):
     opList = [ OpDesc(opClass='MemRead'), 
-               OpDesc(opClass='FloatMemRead'),
-               OpDesc(opClass='MemWrite'),
+               OpDesc(opClass='FloatMemRead') ]
+    count = 2 #
+
+class O3_ARM_Neoverse_N1_Store(FUDesc):
+    opList = [ OpDesc(opClass='MemWrite'),
                OpDesc(opClass='FloatMemWrite') ]
     count = 2 #
 
@@ -126,7 +135,9 @@ class O3_ARM_Neoverse_N1_PredAlu(FUDesc):
 class O3_ARM_Neoverse_N1_FUP(FUPool):
     FUList = [O3_ARM_Neoverse_N1_Simple_Int(),
               O3_ARM_Neoverse_N1_Complex_Int(),
-              O3_ARM_Neoverse_N1_LoadStore(),
+#              O3_ARM_Neoverse_N1_LoadStore(),
+              O3_ARM_Neoverse_N1_Load(),
+              O3_ARM_Neoverse_N1_Store(),
               O3_ARM_Neoverse_N1_PredAlu(),
               O3_ARM_Neoverse_N1_FP()]
 

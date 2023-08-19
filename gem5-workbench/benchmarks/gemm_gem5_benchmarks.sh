@@ -14,9 +14,12 @@ function run_gem5() {
     nfu=$4
     vlen=$5
     assoc=$6
-    dw=$7
-    cw=$8
-    base_dir=$9
+    ld=$7
+    st=$8
+    l1size=$9
+    dw=${10}
+    cw=${11}
+    base_dir=${12}
 
     if (( $(( nr > (32-2*mr-1)/mr )) ))
     then
@@ -24,14 +27,15 @@ function run_gem5() {
         # pass invalid combinations with parallel
         return
     fi
-    echo "Starting with params: mr=${mr}; nr=${nr}; nfu=${nfu}; lat=${lat}; vlen=${vlen}; assoc=${assoc}"
+    echo "Starting with params: mr=${mr}; nr=${nr}; nfu=${nfu}; lat=${lat}; vlen=${vlen}; assoc=${assoc}; ld_ports=${ld}; st_ports=${st}; l1dsize=${l1size}"
 PYTHONPATH=bine-configs build/ARM/gem5.opt configs/aarch64-nanogemm.py \
     --mr ${mr} --nr ${nr} \
     --simd_lat ${lat} --simd_count ${nfu} --simd_width ${vlen}\
-    --assoc ${assoc} \
+    --ld_count ${ld} --st_count ${st} \
+    --assoc ${assoc} --l1_size ${l1size} \
     --decode_width ${dw} --commit_width ${cw} --fetch_buf_size 64 \
-    --base_out_dir $base_dir > $base_dir/gemm_m5_M${mr}_N${nr}_lat${lat}_vl${vlen}_nfu${nfu}_dw${dw}_cw${cw}_fbs64_l1as${assoc}.log 2>&1
-    echo "Finished with params: mr=${mr}; nr=${nr}; nfu=${nfu}; lat=${lat}; vlen=${vlen}; assoc=${assoc}"
+    --base_out_dir $base_dir > $base_dir/gemm_m5_M${mr}_N${nr}_lat${lat}_vl${vlen}_nfu${nfu}_dw${dw}_cw${cw}_fbs64_l1as${assoc}_st${st}_ld${ld}_l1d${l1_size}.log 2>&1
+    echo "Finished with params: mr=${mr}; nr=${nr}; nfu=${nfu}; lat=${lat}; vlen=${vlen}; assoc=${assoc}; ld_ports=${ld}; st_ports=${st}; l1dsize=${l1size}"
 }
 export -f run_gem5
 
@@ -40,13 +44,19 @@ then
 # Just run everything with & and hope the system has enough RAM/cores lol
 
 #for vlen in {128,256,512,1024}; do
+for ld in {1,2,3,4}; do
+for st in {1,2,3,4}; do
+for l1size in {32,64,128}; do
 for lat in {4,6,10}; do
 for nfu in {1,2,4}; do
 for mr in {1..8}; do
     max_n=$(((32-2*$mr-1)/$mr))
     for nr in $(seq -s ' ' 1 $max_n); do
-        run_gem5 $mr $nr $lat $nfu $vlen $assoc $dw $cw $base_dir &
+        run_gem5 $mr $nr $lat $nfu $vlen $assoc $ld $st $l1size $dw $cw $base_dir &
     done
+done
+done
+done
 done
 done
 done
@@ -70,7 +80,7 @@ num_jobs=$(( threads_mem < threads_cpu ? threads_mem : threads_cpu ))
 
 
 echo "Running gem5 simulations in parallel with ${num_jobs} processes"
-parallel -u -j $num_jobs run_gem5 ::: {1..8} ::: {1..30} ::: {4,6,10} ::: {1,2,4} ::: $vlen ::: $assoc ::: $dw ::: $cw ::: $base_dir
+parallel -u -j $num_jobs run_gem5 ::: {1..8} ::: {1..30} ::: {4,6,10} ::: {1,2,4} ::: $vlen ::: $assoc ::: {1,2,3,4} ::: {1,2,3,4} ::: {32,64,128} ::: $dw ::: $cw ::: $base_dir
 echo "Finished all simulations"
 
 fi

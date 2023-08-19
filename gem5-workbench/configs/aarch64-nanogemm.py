@@ -44,7 +44,8 @@ def lcm(a, b):
     return abs(a*b) // math.gcd(a, b)
 
 def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
-              assoc:int,
+              ld_count:int, st_count:int,
+              assoc:int, l1_size:int,
               decode_width:int, commit_width:int,
               fetch_buf_size: int):
     cpu = O3_ARM_Neoverse_N1()
@@ -66,11 +67,15 @@ def setup_cpu(simd_lat:int, simd_count:int, simd_width:int,
             if ('SimdFloatMultAcc' == str(op.opClass)):
                 op.opLat = simd_lat
                 fu.count = simd_count
+            elif ('MemWrite' == str(op.opClass)):
+                fu.count = st_count
+            elif ('MemRead' == str(op.opClass)):
+                fu.count = ld_count
 
     cpu.icache = O3_ARM_Neoverse_N1_ICache()
     cpu.dcache = O3_ARM_Neoverse_N1_DCache()
     cpu.dcache.assoc = assoc
-    cpu.dcache.size = "32kB"
+    cpu.dcache.size = f"{l1_size}kB"
 
     cpu.icache.cpu_side = cpu.icache_port
     cpu.dcache.cpu_side = cpu.dcache_port
@@ -162,6 +167,9 @@ if __name__ == "__m5_main__":
     parser.add_argument("--simd_count", metavar="simd_count", help='SIMD FU count', required=True)
     parser.add_argument("--simd_width", metavar="simd_width", help='SIMD width in bits', required=True)
     parser.add_argument("--assoc", metavar="assoc", help='L1D cache associativity', required=True)
+    parser.add_argument("--l1_size", metavar="l1_size", help='L1D cache size in KiByte', required=True)
+    parser.add_argument("--ld_count", metavar="ld_count", help='number of load units', required=True)
+    parser.add_argument("--st_count", metavar="st_count", help='number of store units', required=True)
     parser.add_argument("--decode_width", metavar="decode_width", help='Max instr. issued to RS', required=True)
     parser.add_argument("--commit_width", metavar="commit_width", help='Max instr. retired per cycle', required=True)
     parser.add_argument("--fetch_buf_size", metavar="fetch_buf_size", help='Fetch Buffer Size in Bytes', required=True)
@@ -175,6 +183,9 @@ if __name__ == "__m5_main__":
     simd_lat = int(args.simd_lat)
     simd_count = int(args.simd_count)
     simd_width = int(args.simd_width)
+    ld_count = int(args.ld_count)
+    st_count = int(args.st_count)
+    l1_size = int(args.l1_size)
     assoc = int(args.assoc)
     decode_width = int(args.decode_width)
     commit_width = int(args.commit_width)
@@ -184,7 +195,8 @@ if __name__ == "__m5_main__":
 
 
     cpu = setup_cpu(simd_lat=simd_lat, simd_count=simd_count, simd_width=simd_width,
-                    assoc=assoc,
+                    ld_count=ld_count, st_count=st_count,
+                    assoc=assoc, l1_size=l1_size,
                     decode_width=decode_width,
                     commit_width=commit_width,
                     fetch_buf_size=fetch_buf_size)
@@ -194,7 +206,7 @@ if __name__ == "__m5_main__":
     root = Root(full_system=False, system=system)
 
     
-    m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}_l1as{assoc}")
+    m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}_l1as{assoc}_st{st_count}_ld{ld_count}_l1d{l1_size}")
     print(f"gem5 output directory: {m5.options.outdir}")
     if os.path.exists(m5.options.outdir):
         print(f"Path exists, removing")
