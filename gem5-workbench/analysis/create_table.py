@@ -29,6 +29,10 @@ def main():
 
     df_assoc4 = df[df["assoc"] == 4]
     df_efficient = df_assoc4[df_assoc4["efficiency"] > 0.95]
+    # Somehow the index gets messed up between these, so set it explicitly for both
+    for df in [df_assoc4,df_efficient]:
+        df.set_index(["mr","nr","lat","nfu","vlen","assoc","meas_idx"],inplace=True,drop=False)
+        df.reset_index(drop=True,inplace=True)
 
     nfu_list = [1,2,4]
     vlen_list = [128,256,512,1024]

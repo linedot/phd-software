@@ -12,7 +12,16 @@ if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
 
-def mr_nr_process(mr:int, nr:int, lat_list, vlen_list, nfu_list, assoc_list, basedir, kc_regex, flop_regex, unroll_regex, stat_regex):
+def mr_nr_process(mr:int, nr:int, 
+                  lat_list:list, 
+                  vlen_list:list, 
+                  nfu_list:list, 
+                  assoc_list:list, 
+                  basedir:os.PathLike,
+                  kc_regex:re.Pattern,
+                  flop_regex:re.Pattern,
+                  unroll_regex:re.Pattern,
+                  stat_regex:re.Pattern):
     mr_nr_data=[]
     for lat in lat_list:
         for vlen in vlen_list:
@@ -57,7 +66,23 @@ def mr_nr_process(mr:int, nr:int, lat_list, vlen_list, nfu_list, assoc_list, bas
                                 key = stat_match.groups()[0]
                                 val = float(stat_match.groups()[1])
                                 runstats[key] = val
-    return mr_nr_data
+    df = pandas.DataFrame(mr_nr_data)
+    # Derivative metrics
+    df = df.sort_values(["vlen","nfu","lat","mr","nr","meas_idx"])
+    df.reset_index(drop=True, inplace=True)
+    df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
+            df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
+    df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
+    data_size = 8 # double
+    df["bytesRead"] = df["mr"]*df["kc"]*(df["vlen"]/8) + \
+                      df["kc"]*df["nr"]*data_size + \
+                      df["mr"]*df["nr"]*(df["vlen"]/8 + \
+                      2*data_size)
+    df["bytesWritten"] = df["mr"]*df["nr"]*(df["vlen"]/8)
+    df.set_index(["mr","nr","lat","nfu","vlen","assoc","meas_idx"],inplace=True,drop=False)
+    df.reset_index(drop=True,inplace=True)
+    return df
+
 def extract_data(basedir: os.PathLike):
 
     pathlist = [x for x in os.listdir(basedir)]
@@ -70,8 +95,7 @@ def extract_data(basedir: os.PathLike):
     unroll_regex = re.compile(r"^Unroll:\s+(\d+)\s*$")
     stat_regex = re.compile(r"^([a-zA-Z0-9_\.\:]+)\s+([-+]?(([0-9]*[.]?[0-9]+([ed][-+]?[0-9]+)?)|(inf)|(nan)))")
 
-    mr_set = set()
-    nr_set = set()
+    mr_nr_set = set()
     lat_set = set()
     vlen_set = set()
     nfu_set = set()
@@ -82,37 +106,33 @@ def extract_data(basedir: os.PathLike):
         if not match:
             raise RuntimeError(f"Directory {dir} that doesn't match pattern exists in basedir {basedir}")
         mr,nr,lat,vlen,nfu,assoc = match.groups()
-        mr_set.add(int(mr))
-        nr_set.add(int(nr))
+        mr_nr_set.add((int(mr),int(nr)))
         lat_set.add(int(lat))
         vlen_set.add(int(vlen))
         nfu_set.add(int(nfu))
         assoc_set.add(int(assoc))
-    mr_list = sorted(mr_set)
-    nr_list = sorted(nr_set)
+    mr_nr_list = sorted(mr_nr_set)
     lat_list = sorted(lat_set)
     vlen_list = sorted(vlen_set)
     nfu_list = sorted(nfu_set)
     assoc_list = sorted(assoc_set)
 
-    print(f"mr_list: {mr_list}")
-    print(f"nr_list: {nr_list}")
+    print(f"mr_nr_list: {mr_nr_list}")
     print(f"lat_list: {lat_list}")
     print(f"vlen_list: {vlen_list}")
     print(f"nfu_list: {nfu_list}")
     print(f"assoc_list: {assoc_list}")
 
-    current_combination = 0
-    mr_nr_combination_count = 0
+    mr_nr_combination_count = len(mr_nr_list)
     # TODO: calculate analytically instead of being lazy
-    for mr in mr_list:
-        for nr in nr_list:
-            if nr > (32-(2*mr+1))/mr:
-                continue
-            mr_nr_combination_count+=1
+    # for mr in mr_list:
+    #     for nr in nr_list:
+    #         if nr > (32-(2*mr+1))/mr:
+    #             continue
+    #         mr_nr_combination_count+=1
     per_mr_nr_count = len(lat_list)*len(vlen_list)*len(nfu_list)*len(assoc_list)
     combination_count = mr_nr_combination_count*per_mr_nr_count
-    alldata = []
+    alldfs = []
 
 
     print(f"Found {combination_count} parameter combinations")
@@ -121,13 +141,6 @@ def extract_data(basedir: os.PathLike):
     print(f"Processing {mr_nr_combination_count} chunks of {per_mr_nr_count} combinations with {max_workers} concurrent workers")
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         mr_nr_done=1
-        mr_nr_combos = []
-        # TODO: build list of combinations and iterate in one loop?
-        for mr in mr_list:
-            for nr in nr_list:
-                if nr > (32-(2*mr+1))/mr:
-                    continue
-                mr_nr_combos.append((mr,nr))
 
         #def mr_nr_process(mr:int, nr:int, lat_list, vlen_list, nfu_list, assoc_list, basedir, kc_regex, flop_regex, unroll_regex, stat_regex):
         future_to_mrnr = {executor.submit(mr_nr_process, 
@@ -140,7 +153,7 @@ def extract_data(basedir: os.PathLike):
                                           kc_regex,
                                           flop_regex,
                                           unroll_regex,
-                                          stat_regex): (mr,nr) for mr,nr in mr_nr_combos}
+                                          stat_regex): (mr,nr) for mr,nr in mr_nr_list}
         for future in concurrent.futures.as_completed(future_to_mrnr):
             mr,nr = future_to_mrnr[future]
             try:
@@ -150,25 +163,15 @@ def extract_data(basedir: os.PathLike):
             except Exception as exc:
                 print(f"Exception during processing of ({mr},{nr}) combos: {exc}")
             else:
-                alldata.extend(data)
+                alldfs.append(data)
         # Because the progress string doesn't have a newline
         print()
 
-    print("Converting data to pandas.DataFrame")
-    df = pandas.DataFrame(alldata)
-    df = df.sort_values(["vlen","nfu","lat","mr","nr","meas_idx"])
-    df.reset_index(drop=True, inplace=True)
-    df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
-            df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
-    df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
-    data_size = 8 # double
-    df["bytesRead"] = df["mr"]*df["kc"]*(df["vlen"]/8) + \
-                      df["kc"]*df["nr"]*data_size + \
-                      df["mr"]*df["nr"]*(df["vlen"]/8 + \
-                      2*data_size)
-    df["bytesWritten"] = df["mr"]*df["nr"]*(df["vlen"]/8)
-    print("Finished converting data to pandas.DataFrame")
+    print("Combining dataframes")
+    df = pandas.concat(alldfs,axis=0)
+    print("Finished combining dataframes")
 
+    print(df[["efficiency","mr","nr","lat","nfu","vlen"]])
     return df
 
 
