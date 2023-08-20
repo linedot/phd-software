@@ -34,7 +34,7 @@ PYTHONPATH=bine-configs build/ARM/gem5.opt configs/aarch64-nanogemm.py \
     --ld_count ${ld} --st_count ${st} \
     --assoc ${assoc} --l1_size ${l1size} \
     --decode_width ${dw} --commit_width ${cw} --fetch_buf_size 64 \
-    --base_out_dir $base_dir > $base_dir/gemm_m5_M${mr}_N${nr}_lat${lat}_vl${vlen}_nfu${nfu}_dw${dw}_cw${cw}_fbs64_l1as${assoc}_st${st}_ld${ld}_l1d${l1_size}.log 2>&1
+    --base_out_dir $base_dir > $base_dir/gemm_m5_M${mr}_N${nr}_lat${lat}_vl${vlen}_nfu${nfu}_dw${dw}_cw${cw}_fbs64_l1as${assoc}_st${st}_ld${ld}_l1d${l1size}.log 2>&1
     echo "Finished with params: mr=${mr}; nr=${nr}; nfu=${nfu}; lat=${lat}; vlen=${vlen}; assoc=${assoc}; ld_ports=${ld}; st_ports=${st}; l1dsize=${l1size}"
 }
 export -f run_gem5

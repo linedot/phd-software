@@ -1,74 +1,97 @@
 #!/usr/bin/env python
 
-import argparse
-import os
-import re
 import pandas
-import concurrent.futures
 
+import argparse
+import concurrent.futures
+import itertools
+import os
+import psutil
+import re
 import sys
+import copy
+
+from functools import reduce
+
 MIN_PYTHON = (3, 9)
 if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
 
 
-def mr_nr_process(mr:int, nr:int, 
-                  lat_list:list, 
-                  vlen_list:list, 
-                  nfu_list:list, 
-                  assoc_list:list, 
+def inner_process(outer_param_dict : dict,
+                  inner_param_dict : dict,
+                  outer_params : list,
+                  inner_params : list,
                   basedir:os.PathLike,
                   kc_regex:re.Pattern,
                   flop_regex:re.Pattern,
                   unroll_regex:re.Pattern,
                   stat_regex:re.Pattern):
-    mr_nr_data=[]
-    for lat in lat_list:
-        for vlen in vlen_list:
-            for nfu in nfu_list:
-                for assoc in assoc_list:
-                    confname = f"gemm_m5_M{mr}_N{nr}_lat{lat}_vl{vlen}_nfu{nfu}_dw8_cw8_fbs64_l1as{assoc}"
-                    kc = 0
-                    flops = 0
-                    unroll = 0
-                    stats = {"mr":mr, "nr":nr, "lat":lat, "vlen":vlen, "nfu":nfu, "assoc":assoc}
-                    with open(os.path.join(basedir,f"{confname}.log")) as logfile:
-                        for line in logfile:
-                            kc_match = kc_regex.match(line)
-                            if kc_match:
-                                kc = int(kc_match.groups()[0])
-                                continue
-                            flop_match = flop_regex.match(line)
-                            if flop_match:
-                                flops = int(flop_match.groups()[0])
-                                continue
-                            unroll_match = unroll_regex.match(line)
-                            if unroll_match:
-                                unroll = int(unroll_match.groups()[0])
-                                continue
-                    stats["unroll"] = unroll
-                    stats["flops"] = flops
-                    stats["kc"] = kc
+    inner_df=pandas.DataFrame()
+    param_lists = [inner_param_dict[param] for param in inner_params]
+    param_lists += [[outer_param_dict[param]] for param in outer_params]
+    combinations = itertools.product(*param_lists)
 
-                    with open(os.path.join(basedir,f"{confname}","stats.txt")) as statfile:
-                        meas_idx = 0
-                        runstats = {}
-                        for line in statfile:
-                            if line.startswith("---------- End Sim"):
-                                runstats["meas_idx"] = meas_idx
-                                runstats = stats | runstats
-                                mr_nr_data.append(runstats)
-                                runstats = {}
-                                meas_idx+=1
-                                continue
-                            stat_match = stat_regex.match(line)
-                            if stat_match:
-                                key = stat_match.groups()[0]
-                                val = float(stat_match.groups()[1])
-                                runstats[key] = val
-    df = pandas.DataFrame(mr_nr_data)
+    params = inner_params+outer_params
+    for combo in combinations:
+        values = { param : combo[i] for (i,param) in enumerate(params) }
+        mr,nr = values['mr_nr']
+        lat = values['lat']
+        vlen = values['vlen']
+        nfu = values['nfu']
+        assoc = values['assoc']
+        st_count = values['st_count']
+        ld_count = values['ld_count']
+        l1_size = values['l1_size']
+        confname = f"gemm_m5_M{mr}_N{nr}_lat{lat}_vl{vlen}_nfu{nfu}_dw8_cw8_fbs64_l1as{assoc}_st{st_count}_ld{ld_count}_l1d{l1_size}"
+        kc = 0
+        flops = 0
+        unroll = 0
+        stats = copy.deepcopy(values)
+        del stats["mr_nr"]
+        stats["mr"] = mr
+        stats["nr"] = nr
+        sortindexby = [p for p in params if p != "mr_nr"]+["meas_idx"]
+        with open(os.path.join(basedir,f"{confname}.log")) as logfile:
+            for line in logfile:
+                kc_match = kc_regex.match(line)
+                if kc_match:
+                    kc = int(kc_match.groups()[0])
+                    continue
+                flop_match = flop_regex.match(line)
+                if flop_match:
+                    flops = int(flop_match.groups()[0])
+                    continue
+                unroll_match = unroll_regex.match(line)
+                if unroll_match:
+                    unroll = int(unroll_match.groups()[0])
+                    continue
+        stats["unroll"] = unroll
+        stats["flops"] = flops
+        stats["kc"] = kc
+
+        filestats = []
+        with open(os.path.join(basedir,f"{confname}","stats.txt")) as statfile:
+            meas_idx = 0
+            runstats = {}
+            for line in statfile:
+                if line.startswith("---------- End Sim"):
+                    runstats["meas_idx"] = meas_idx
+                    runstats = stats | runstats
+                    filestats.append(runstats)
+                    runstats = {}
+                    meas_idx+=1
+                    continue
+                stat_match = stat_regex.match(line)
+                if stat_match:
+                    key = stat_match.groups()[0]
+                    val = float(stat_match.groups()[1])
+                    runstats[key] = val
+                    
+        inner_df = pandas.concat([inner_df,pandas.DataFrame(filestats)])
+    df = inner_df.copy()
     # Derivative metrics
-    df = df.sort_values(["vlen","nfu","lat","mr","nr","meas_idx"])
+    df = df.sort_values(sortindexby)
     df.reset_index(drop=True, inplace=True)
     df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
             df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
@@ -79,17 +102,14 @@ def mr_nr_process(mr:int, nr:int,
                       df["mr"]*df["nr"]*(df["vlen"]/8 + \
                       2*data_size)
     df["bytesWritten"] = df["mr"]*df["nr"]*(df["vlen"]/8)
-    df.set_index(["mr","nr","lat","nfu","vlen","assoc","meas_idx"],inplace=True,drop=False)
+    df.set_index(sortindexby,inplace=True,drop=False)
     df.reset_index(drop=True,inplace=True)
     return df
 
 def extract_data(basedir: os.PathLike):
 
-    pathlist = [x for x in os.listdir(basedir)]
 
-    dirlist = [d for d in pathlist if os.path.isdir(os.path.join(basedir,d))]
-
-    param_regex = re.compile(r"gemm_m5_M(\d+)_N(\d+)_lat(\d+)_vl(\d+)_nfu(\d+)_dw8_cw8_fbs64_l1as(\d+)")
+    param_regex = re.compile(r"gemm_m5_M(\d+)_N(\d+)_lat(\d+)_vl(\d+)_nfu(\d+)_dw8_cw8_fbs64_l1as(\d+)_st(\d+)_ld(\d+)_l1d(\d+)")
     flop_regex = re.compile(r"^Number of FLOPS per measurement:\s+(\d+)\s*$")
     kc_regex = re.compile(r"^k_c:\s+(\d+)\s*$")
     unroll_regex = re.compile(r"^Unroll:\s+(\d+)\s*$")
@@ -100,68 +120,126 @@ def extract_data(basedir: os.PathLike):
     vlen_set = set()
     nfu_set = set()
     assoc_set = set()
+    st_count_set = set()
+    ld_count_set = set()
+    l1_size_set = set()
 
-    for dir in dirlist:
-        match = param_regex.match(dir)
+    path_iter = os.scandir(basedir)
+    print("Generating list of subdirectories")
+    dirlist = [d for d in path_iter if d.is_dir()]
+    print(f"Subdirectory list generated. Size: {len(dirlist)}")
+    for d in dirlist:
+        match = param_regex.match(d.name)
         if not match:
-            raise RuntimeError(f"Directory {dir} that doesn't match pattern exists in basedir {basedir}")
-        mr,nr,lat,vlen,nfu,assoc = match.groups()
+            raise RuntimeError(f"Directory {d.name} that doesn't match pattern exists in basedir {basedir}")
+        mr,nr,lat,vlen,nfu,assoc,st_count,ld_count,l1_size = match.groups()
         mr_nr_set.add((int(mr),int(nr)))
         lat_set.add(int(lat))
         vlen_set.add(int(vlen))
         nfu_set.add(int(nfu))
         assoc_set.add(int(assoc))
-    mr_nr_list = sorted(mr_nr_set)
-    lat_list = sorted(lat_set)
-    vlen_list = sorted(vlen_set)
-    nfu_list = sorted(nfu_set)
-    assoc_list = sorted(assoc_set)
+        st_count_set.add(int(st_count))
+        ld_count_set.add(int(ld_count))
+        l1_size_set.add(int(l1_size))
+    param_lists = {}
+    param_lists['mr_nr'] = sorted(mr_nr_set)
+    param_lists['lat'] = sorted(lat_set)
+    param_lists['vlen'] = sorted(vlen_set)
+    param_lists['nfu'] = sorted(nfu_set)
+    param_lists['assoc'] = sorted(assoc_set)
+    param_lists['st_count'] = sorted(st_count_set)
+    param_lists['ld_count'] = sorted(ld_count_set)
+    param_lists['l1_size'] = sorted(l1_size_set)
 
-    print(f"mr_nr_list: {mr_nr_list}")
-    print(f"lat_list: {lat_list}")
-    print(f"vlen_list: {vlen_list}")
-    print(f"nfu_list: {nfu_list}")
-    print(f"assoc_list: {assoc_list}")
+    print(f"mr_nr_list: {param_lists['mr_nr']}")
+    print(f"lat_list: {param_lists['lat']}")
+    print(f"vlen_list: {param_lists['vlen']}")
+    print(f"nfu_list: {param_lists['nfu']}")
+    print(f"assoc_list: {param_lists['assoc']}")
+    print(f"st_count_list: {param_lists['st_count']}")
+    print(f"ld_count_list: {param_lists['ld_count']}")
+    print(f"l1_size_list: {param_lists['l1_size']}")
 
-    mr_nr_combination_count = len(mr_nr_list)
-    # TODO: calculate analytically instead of being lazy
-    # for mr in mr_list:
-    #     for nr in nr_list:
-    #         if nr > (32-(2*mr+1))/mr:
-    #             continue
-    #         mr_nr_combination_count+=1
-    per_mr_nr_count = len(lat_list)*len(vlen_list)*len(nfu_list)*len(assoc_list)
-    combination_count = mr_nr_combination_count*per_mr_nr_count
+    combination_count = reduce(lambda a,b : a*b, [len(l) for l in param_lists.values()])
+
     alldfs = []
-
-
     print(f"Found {combination_count} parameter combinations")
+    
+    hw_cores = int(os.cpu_count())
+    print(f"System has {hw_cores} cpus")
 
-    max_workers = min(os.cpu_count(),mr_nr_combination_count)
-    print(f"Processing {mr_nr_combination_count} chunks of {per_mr_nr_count} combinations with {max_workers} concurrent workers")
+    # We want to schedule n combinations on m threads so that n is the smallest 
+    # number of combinations > m
+    # For this we split it in outer parameters (for scheduling concurrently) and 
+    # inner parameters (that each worker will go through)
+    # We start with outer parameters only being kernel size and add parameters
+    # that result in the number of combinations closest to number of hw workers
+    # until the number of outer combinations is larger than number of hw workers
+
+    # Actually if we start with just kernel size, we have like 5k inner combinations, 
+    # which would roughly estimating increase the ram use per worker to around 30GiB,
+    # so let's start with more outer params
+    outer_params = ["mr_nr","lat","nfu"]
+    inner_params = [key for key in param_lists.keys() if key not in outer_params]
+    outer_combination_count = reduce(lambda a,b : a*b, [len(l) for l in [param_lists[key] for key in outer_params]])
+    inner_combination_count = reduce(lambda a,b : a*b, [len(l) for l in [param_lists[key] for key in inner_params]])
+
+    def calculate_max_ram_cores(combos:int):
+        # Ran OOM when using 256 workers on a 256gb machine (this was with ~600 combinations/files
+        # per worker, 1TB machine was fine, so let's assume a usage of around 3 GiB and use up to
+        # 60% of available RAM
+        ram_available = psutil.virtual_memory().total
+        # TODO: calculate dynamically based on combinations per worker
+        ram_per_worker = 3*2**30/600*combos
+        hw_max_ram_cores = int((0.60*ram_available)/ram_per_worker)
+        print(f"System has enough memory for {hw_max_ram_cores} concurrent workers")
+        return hw_max_ram_cores
+
+    hw_max_ram_cores = calculate_max_ram_cores(inner_combination_count)
+    hw_cores = min(hw_cores, hw_max_ram_cores)
+    while hw_cores > outer_combination_count:
+        counts = [outer_combination_count*len(param_lists[param]) for param in inner_params]
+        index_min = counts.index(min(counts))
+        outer_params += [inner_params[index_min]]
+
+        inner_params = [key for key in param_lists.keys() if key not in outer_params]
+        outer_combination_count = reduce(lambda a,b : a*b, [len(l) for l in [param_lists[key] for key in outer_params]])
+        inner_combination_count = reduce(lambda a,b : a*b, [len(l) for l in [param_lists[key] for key in inner_params]])
+        hw_max_ram_cores = calculate_max_ram_cores(inner_combination_count)
+        hw_cores = min(hw_cores, hw_max_ram_cores)
+
+    print(f"Outer params: {outer_params} ({outer_combination_count} combinations), inner params: {inner_params} ({inner_combination_count} combinations)")
+
+    outer_combinations = itertools.product(*[param_lists[key] for key in outer_params])
+    outer_combination_dicts = [ {key : combination[i] for i,key in enumerate(outer_params)} for combination in outer_combinations]
+
+    max_workers = min(hw_cores,outer_combination_count)
+    print(f"Processing {outer_combination_count} chunks of {inner_combination_count} combinations with {max_workers} concurrent workers")
+    inner_param_dict = {key : l for key,l in param_lists.items() if key in inner_params}
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        mr_nr_done=1
+        inner_done=1
 
-        #def mr_nr_process(mr:int, nr:int, lat_list, vlen_list, nfu_list, assoc_list, basedir, kc_regex, flop_regex, unroll_regex, stat_regex):
-        future_to_mrnr = {executor.submit(mr_nr_process, 
-                                          mr, nr,
-                                          lat_list,
-                                          vlen_list,
-                                          nfu_list,
-                                          assoc_list,
-                                          basedir,
-                                          kc_regex,
-                                          flop_regex,
-                                          unroll_regex,
-                                          stat_regex): (mr,nr) for mr,nr in mr_nr_list}
-        for future in concurrent.futures.as_completed(future_to_mrnr):
-            mr,nr = future_to_mrnr[future]
+        future_to_odict = {executor.submit(inner_process, 
+                                           outer_param_dict,
+                                           inner_param_dict,
+                                           outer_params,
+                                           inner_params,
+                                           basedir,
+                                           kc_regex,
+                                           flop_regex,
+                                           unroll_regex,
+                                           stat_regex): outer_param_dict for outer_param_dict in outer_combination_dicts}
+        for future in concurrent.futures.as_completed(future_to_odict):
+            odict = future_to_odict[future]
             try:
                 data = future.result()
-                print(f"\rprocessed {mr_nr_done*per_mr_nr_count}/{combination_count} combinations",end='')
-                mr_nr_done+=1
+                print(f"\rprocessed {inner_done*inner_combination_count}/{combination_count} combinations",end='')
+                inner_done+=1
             except Exception as exc:
-                print(f"Exception during processing of ({mr},{nr}) combos: {exc}")
+                print(f"Exception during processing of combination {odict}.")
+                print(f"exc type: {type(exc)}")
+                print(f"exc args: {exc.args}")
+                print(f"exc     : {exc}")
             else:
                 alldfs.append(data)
         # Because the progress string doesn't have a newline
@@ -171,7 +249,7 @@ def extract_data(basedir: os.PathLike):
     df = pandas.concat(alldfs,axis=0)
     print("Finished combining dataframes")
 
-    print(df[["efficiency","mr","nr","lat","nfu","vlen"]])
+    #print(df[["efficiency","mr","nr","lat","nfu","vlen"]])
     return df
 
 

@@ -2,7 +2,7 @@
 #SBATCH -N 12
 #SBATCH -n 12
 #SBATCH -A zam
-#SBATCH -p dc-cpu
+#SBATCH -p batch
 #SBATCH --time=04:00:00
 
 nodes=($(scontrol show hostnames "$SLURM_JOB_NODELIST"))
