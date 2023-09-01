@@ -135,6 +135,8 @@ logfile="${build_dir}/binutils-configure.log"
 echo "Configuring binutils. Log: ${logfile}"
 cd binutils-${version}
 ./configure --prefix="${out_dir}" \
+            --build="$(uname -m)-linux-gnu" \
+            --host="$(uname -m)-linux-gnu" \
             --target="${arch}-linux-gnu" \
             --disable-nls \
             --enable-deterministic-archives \

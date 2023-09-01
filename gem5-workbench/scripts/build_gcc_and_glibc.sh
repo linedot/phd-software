@@ -7,6 +7,7 @@ out_dir="unset"
 arch="unset"
 version_gcc="unset"
 version_glibc="unset"
+version_gmp="unset"
 sysroot="unset"
 patch_dir="unset"
 
@@ -48,6 +49,11 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    -G|--version_gmp)
+      version_gmp="$2"
+      shift
+      shift
+      ;;
     -*|--*)
       echo "Unknown option $1"
       exit 1
@@ -85,6 +91,8 @@ check_argument version_gcc "GCC version" "--version_gcc"
 ((missing_arguments+=$?))
 check_argument version_glibc "GLIBC version" "--version_glibc"
 ((missing_arguments+=$?))
+check_argument version_gmp "GMP version" "--version_gmp"
+((missing_arguments+=$?))
 
 echo $missing_arguments
 
@@ -102,6 +110,7 @@ echo "Patch directory  = ${build_dir}"
 echo "sysroot          = ${sysroot}"
 echo "GCC version      = ${version_gcc}"
 echo "GLIBC version    = ${version_glibc}"
+echo "GMP version      = ${version_gmp}"
 
 
 mkdir -p ${build_dir}
@@ -164,6 +173,30 @@ if [ 0 -ne $? ]; then
     exit -1
 fi
 
+gmp_archive_file=gmp-${version_gmp}.tar.xz
+if [ ! -e "$gmp_archive_file" ]; then
+    echo "Downloading ${gmp_archive_file}"
+    curl -LO https://ftp.gnu.org/gnu/gmp/${gmp_archive_file}
+else
+    echo "$gmp_archive_file already exists, using that file"
+fi
+
+gmp_signature_file=gmp-${version_gmp}.tar.xz.sig
+if [ ! -e "$gmp_signature_file" ]; then
+    echo "Downloading ${gmp_signature_file}"
+    curl -LO https://ftp.gnu.org/gnu/gmp/${gmp_signature_file}
+else
+    echo "$gmp_signature_file already exists, using that file"
+fi
+
+logfile="${build_dir}/gmp-gpg-verify.log"
+echo "Verifying ${gmp_archive_file}. Log: ${logfile}"
+gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${gmp_signature_file} ${gmp_archive_file} > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to verify ${gmp_archive_file} with ${gmp_signature_file}. Archive damaged/aborted download? Aborting"
+    exit -1
+fi
+
 if [ ! -d "gcc-${version_gcc}" ]; then
     logfile="${build_dir}/gcc-untar.log"
     echo "Unpacking ${gcc_archive_file}. Log: ${logfile}"
@@ -214,6 +247,31 @@ else
     echo "No patches for GLIBC, proceeding as is"
 fi
 
+if [ ! -d "gmp-${version_gmp}" ]; then
+    logfile="${build_dir}/gmp-untar.log"
+    echo "Unpacking ${gmp_archive_file}" > $logfile 2>&1
+    tar xJf ${gmp_archive_file}
+else
+    echo "Directory gmp-${version_gmp} exists, using that"
+fi
+
+echo "Checking for GLIBC patches (filename must start with gmp-${version_gmp}):"
+patches=($(ls -d ${patch_dir}/gmp-${version_gmp}*.patch 2>/dev/null))
+if [ ${#patches[@]} -ne 0 ]; then
+    logfile="${build_dir}/gmp-patching.log"
+    echo "Applying GLIBC patches. Log: ${logfile}"
+    for patch in "${patches[@]}"; do
+        echo "Applying patch ${patch} to gmp-${version_gmp}"
+        patch -d gmp-${version_gmp} -p1 < $patch > $logfile 2>&1
+        if [ 0 -ne $? ]; then
+            echo "Failed to apply patch ${patch}, aborting"
+            exit -1
+        fi
+    done
+else
+    echo "No patches for GMP, proceeding as is"
+fi
+
 
 #Check binutils
 bu_bins=($(ls ${out_dir}/bin/${arch}-linux-gnu-*))
@@ -222,6 +280,50 @@ if [ ${#bu_bins[@]} -eq 0 ]; then
     exit -1
 fi
 
+if [ -d gmp-build ]; then
+    echo "Removing old gmp-build directory"
+    rm -rf gmp-build
+fi
+mkdir gmp-build
+cd gmp-build
+logfile="${build_dir}/gmp-configure.log"
+echo "Configuring GMP. Log: ${logfile}"
+export CC="gcc"
+export CXX="g++"
+oldpath=$PATH
+export PATH="${build_dir}/bin:${out_dir}/bin/:$PATH"
+../gmp-${version_gmp}/configure --prefix="${out_dir}" \
+                                --disable-multilib \
+                                --disable-nls \
+                                --disable-shared \
+                                --disable-decimal-float \
+                                --disable-threads \
+                                --disable-libatomic \
+                                --disable-libgomp \
+                                --disable-libquadmath \
+                                --disable-libssp \
+                                --disable-libvtv \
+                                --disable-libstdcxx > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to configure GMP"
+    exit -1
+fi
+logfile="${build_dir}/gmp-build.log"
+echo "Building GMP. Log: ${logfile}"
+make -j $(nproc) > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to build GMP"
+    exit -1
+fi
+logfile="${build_dir}/gmp-install.log"
+echo "Installing GMP. Log: ${logfile}"
+make -j $(nproc) install > $logfile 2>&1
+if [ 0 -ne $? ]; then
+    echo "Failed to install GMP"
+    exit -1
+fi
+export PATH=$oldpath
+cd ..
 
 
 cd gcc-${version_gcc}
@@ -237,18 +339,26 @@ mkdir gcc-build
 cd gcc-build
 logfile="${build_dir}/gcc-stage1-configure.log"
 echo "Configuring stage 1 GCC. Log: ${logfile}"
-export CC="ccache gcc"
-export CXX="ccache g++"
-export PATH="${out_dir}/bin/:$PATH"
+export CC="gcc"
+export CXX="g++"
+oldpath=$PATH
+export PATH="${build_dir}/stage1-gcc/bin:${out_dir}/bin/:$PATH"
 ../gcc-${version_gcc}/configure --prefix="${build_dir}/stage1-gcc" \
+                                --build="$(uname -m)-linux-gnu" \
+                                --host="$(uname -m)-linux-gnu" \
                                 --target="${arch}-linux-gnu" \
                                 --with-local-prefix=/usr \
                                 --with-sysroot=$sysroot \
                                 --with-build-sysroot=$sysroot \
                                 --with-native-system-header-dir=/include \
+                                --with-as=$(which ${arch}-linux-gnu-as) \
+                                --with-ld=$(which ${arch}-linux-gnu-ld) \
+                                --with-gnu-as \
+                                --with-gnu-ld \
                                 --disable-multilib \
                                 --without-headers \
                                 --with-newlib \
+                                --with-gmp=${out_dir} \
                                 --enable-languages=c,c++ \
                                 --disable-nls \
                                 --disable-shared \
@@ -278,6 +388,7 @@ if [ 0 -ne $? ]; then
     echo "Failed to install stage 1 GCC"
     exit -1
 fi
+export PATH=$oldpath
 cd ..
 
 if [ -d glibc-build ]; then
@@ -288,8 +399,8 @@ mkdir glibc-build
 cd glibc-build
 logfile="${build_dir}/glibc-configure.log"
 echo "Configuring GLIBC. Log: ${logfile}"
-export CC="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-gcc"
-export CXX="ccache ${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-g++"
+export CC="${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-gcc"
+export CXX="${build_dir}/stage1-gcc/bin/${arch}-linux-gnu-g++"
 oldpath=$PATH
 export PATH="${out_dir}/${arch}-linux-gnu/bin/:$PATH"
 ../glibc-${version_glibc}/configure --prefix=/usr \
@@ -330,9 +441,11 @@ export PATH=$oldpath
 logfile="${build_dir}/gcc-stage2-configure.log"
 echo "Configuring stage 2 (final) GCC. Log: ${logfile}"
 cd gcc-build && rm -rf *
-export CC="ccache gcc"
-export CXX="ccache g++"
+export CC="gcc"
+export CXX="g++"
 ../gcc-${version_gcc}/configure --prefix="${out_dir}" \
+                                --build="$(uname -m)-linux-gnu" \
+                                --host="$(uname -m)-linux-gnu" \
                                 --target="${arch}-linux-gnu" \
                                 --disable-multilib \
                                 --program-prefix=${arch}-linux-gnu- \
@@ -349,6 +462,7 @@ export CXX="ccache g++"
                                 --libexecdir=${out_dir}/lib \
                                 --with-system-zlib \
                                 --with-isl \
+                                --with-gmp=${out_dir} \
                                 --with-linker-hash-style=gnu \
                                 --disable-nls \
                                 --disable-libunwind-exceptions \
@@ -375,8 +489,8 @@ if [ 0 -ne $? ]; then
 fi
 logfile="${build_dir}/gcc-stage2-build.log"
 echo "Building stage 2 (final) GCC. Log: ${logfile}"
-CC="ccache gcc" && \
-CXX="ccache g++" && \
+CC="gcc" && \
+CXX="g++" && \
 make -j $(nproc) > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build stage 2 (final) GCC"
