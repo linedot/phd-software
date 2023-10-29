@@ -19,6 +19,7 @@ function toolchain_missing_compiler() {
 
 for dir in $BENCHMARKS_PATH $UARCH_BENCH_PATH $AARCH64_TOOLCHAIN_PATH $RISCV64_TOOLCHAIN_PATH $AARCH64_BINARIES_PATH $RISCV64_BINARIES_PATH $GEM5_PATH;
 do
+    echo "checking $dir"
     [[ -d "$dir" ]] || wrong_directory
 done
 

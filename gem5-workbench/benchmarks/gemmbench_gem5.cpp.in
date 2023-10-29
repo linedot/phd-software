@@ -27,6 +27,7 @@ int main(int argc, char* argv[])
 
     std::uint64_t measurements = 8;
     std::uint64_t iterations = std::stoull(argv[1]);
+    std::uint64_t kleft = 0;
 
     std::vector<$DT> adata;
     std::vector<$DT> bdata;
