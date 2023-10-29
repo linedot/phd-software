@@ -94,10 +94,10 @@ class O3_ARM_v7a_BP(BiModeBP):
     globalCtrBits = 2
     choicePredictorSize = 8192
     choiceCtrBits = 2
-    BTBEntries = 2048
-    BTBTagSize = 18
-    RASSize = 16
-    instShiftAmt = 2
+    BiModeBP.btb.numEntries = 2048
+    BiModeBP.btb.tagBits = 18
+    BiModeBP.ras.numEntries = 16
+    BiModeBP.btb.instShiftAmt = 2
 
 class O3_ARM_v7a_3(DerivO3CPU):
     LQEntries = 16
