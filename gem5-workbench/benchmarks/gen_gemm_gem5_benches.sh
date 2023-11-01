@@ -42,12 +42,13 @@ echo >> $makefile_rvv
 
 echo "Generating Makefiles for gemm benchmarks"
 
-benchmarks=()
+sve_benchmarks=()
+rvv_benchmarks=()
 for mr in {1..8}; do
     max_n=$(((32-2*$mr-1)/$mr))
     for nr in $(seq -s ' ' 1 $max_n); do 
         bench_name=gemmbench_${mr}_${nr}_avecpreload_bvecdist1_boff
-        benchmarks+=("$bench_name")
+        sve_benchmarks+=("$bench_name")
 cat <<EOT >> $makefile_sve
 ${bench_name}_sve.cpp: gemmbench_gem5.cpp.in
 	python3 ${UARCH_BENCH_PATH}/gemmerator.py \
@@ -71,6 +72,8 @@ ${AARCH64_BINARIES_PATH}/${bench_name}: ${bench_name}_sve.cpp
 	    -I ${GEM5_PATH}/include/ -L ${GEM5_PATH}/util/m5/build/arm64/out/ -lm5
 
 EOT
+        bench_name=gemmbench_${mr}_${nr}_avecpreload_bvecfmavf
+        rvv_benchmarks+=("$bench_name")
 
 cat <<EOT >> $makefile_rvv
 ${bench_name}_rvv.cpp: gemmbench_gem5.cpp.in
@@ -80,7 +83,7 @@ ${bench_name}_rvv.cpp: gemmbench_gem5.cpp.in
 	-V 32 \
 	-M l1 \
 	-t double \
-	--bvec-strat dist1_boff \
+	--bvec-strat fmavf \
 	--avec-strat preload \
 	gemmbench_gem5.cpp.in > ${bench_name}_rvv.cpp
 
@@ -112,7 +115,8 @@ NC=$(tput sgr0)
 for tgt in sve rvv; do
     src_str="sources="
     bin_str="binaries="
-    for b in ${benchmarks[@]}; do
+    bvarname=${tgt}_benchmarks[@]
+    for b in ${!bvarname}; do
         src_str+="${b}_${tgt}.cpp "
         bin_str+="${bpaths[$tgt]}/${b} "
     done
