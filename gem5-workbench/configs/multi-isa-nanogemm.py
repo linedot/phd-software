@@ -239,7 +239,7 @@ def setup_cpu(isa:str,
 
 def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
     import m5
-    from m5.objects import System, SrcClockDomain, VoltageDomain, AddrRange, SystemXBar, MemCtrl, DDR3_1600_8x8, SEWorkload, Process
+    from m5.objects import System, SrcClockDomain, VoltageDomain, AddrRange, SystemXBar, MemCtrl, DDR4_2400_8x8, SEWorkload, Process
 
     system = System()
 
@@ -250,7 +250,7 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
     system.clk_domain.voltage_domain = VoltageDomain()
 
     system.mem_mode = "timing"
-    system.mem_ranges = [AddrRange("512MB")]
+    system.mem_ranges = [AddrRange("256MiB")]
     #system.cpu = cpu
 
     system.membus = SystemXBar()
@@ -263,7 +263,7 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
     #system.cpu.createInterruptController()
 
     system.mem_ctrl = MemCtrl()
-    system.mem_ctrl.dram = DDR3_1600_8x8()
+    system.mem_ctrl.dram = DDR4_2400_8x8(device_size="256MiB")
     system.mem_ctrl.dram.range = system.mem_ranges[0]
     system.mem_ctrl.port = system.membus.mem_side_ports
 
@@ -278,10 +278,17 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
     #system.system_port = system.membus.cpu_side_ports
 
     thispath = os.path.dirname(os.path.realpath(__file__))
+    bin_name = ""
+    if "riscv64" == isa:
+        bin_name = f"gemmbench_{mr}_{nr}_avecpreload_bvecfmavf"
+    elif "aarch64" == isa:
+        bin_name = f"gemmbench_{mr}_{nr}_avecpreload_bvecdist1_boff"
+    else:
+        raise RuntimeError("Unknown isa {isa}")
     binary = os.path.join(
         thispath,
         "../",
-        f"binaries/{isa}/gemmbench_{mr}_{nr}_avecpreload_bvecdist1_boff",
+        f"binaries/{isa}/{bin_name}",
     )
 
     system.workload = SEWorkload.init_compatible(binary)
@@ -327,7 +334,9 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
 def simrun(isa,combo):
     import m5
     from m5.objects import Root
+    import resource
 
+    # Should be inherited from parent process, but isn't
     # Suppress file creation
     m5.options.outdir="/dev/null"
     m5.options.dump_config=False
@@ -336,20 +345,11 @@ def simrun(isa,combo):
     m5.options.dot_dvfs_config=False
     m5.core.setOutputDir("/dev/null")
 
-    # be quiet
-    #contextlib.redirect_stdout(None)
-    #contextlib.redirect_stderr(None)
-    #sys.stdout = open(os.devnull, 'w')
-    #sys.stderr = open(os.devnull, 'w')
+    # Let's see if we can stop memuse explosions with this
+    softlimit = 12*1024*1024*1024
+    hardlimit = 16*1024*1024*1024
+    resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
 
-    #print("Hello, I should not print")
-
-    ## Suppress spamming the terminal
-    #m5.options.quiet=True
-    #m5.options.redirect_stderr=True
-    #m5.options.redirect_stdout=True
-    #m5.options.stderr_file="/dev/null"
-    #m5.options.stdout_file="/dev/null"
 
     mr,nr,simd_lat,simd_count,simd_width,simd_phreg_count,ld_count,st_count,l1_size,rob_size,assoc,decode_width,commit_width,fetch_buf_size = combo
     cpu = setup_cpu(isa=isa,
@@ -419,10 +419,27 @@ def simrun(isa,combo):
             noexit=False
 
     print("Exiting @ tick %i because %s" % (m5.curTick(), exit_event.getCause()))
+
+    import sys
+    dictsize = sys.getsizeof(statdict)
+    if dictsize > 512*1024:
+        print(f"Huge dict: {dictsize} bytes. truncating")
+        must_len = len(statdict["system.cpu.numCycles"])
+        for k in statdict.keys():
+            del statdict[k][must_len:]
+        dictsize = sys.getsizeof(statdict)
+        print(f"New size: {dictsize}")
     return statdict
 
 
 def main():
+    import resource
+
+    ram_available = psutil.virtual_memory().total
+    # Let's see if we can stop memuse explosions with this
+    softlimit = int(0.5*ram_available)
+    hardlimit = int(0.75*ram_available)
+    resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
     import m5
     parser = argparse.ArgumentParser(description="Run aarch64 m5 nanogemm benchmark for a given kernel size")
     parser.add_argument("--isa", metavar="isa", help='ISA to use (aarch64,riscv64)', required=True)
@@ -483,6 +500,14 @@ def main():
 
     args = parser.parse_args()
 
+    # Suppress file creation
+    m5.options.outdir="/dev/null"
+    m5.options.no_output_files=True
+    m5.options.dump_config=False
+    m5.options.json_config=False
+    m5.options.dot_config=False
+    m5.options.dot_dvfs_config=False
+    m5.core.setOutputDir("/dev/null")
     if args.quiet:
         # Suppress spamming the terminal
         m5.options.quiet=True
@@ -510,15 +535,21 @@ def main():
 
     # Non-List problematic
     combinations = list(itertools.product(*param_lists))
+    combination_count = len(combinations)
+
+    max_vregs = 32
+    # Filter invalid mr/nr combinations
+    print("filtering out invalid mr/nr combinations")
+    combinations = [combo for combo in combinations if max_vregs > (combo[0]*combo[1]+combo[0]*2+1)]
+    print(f"Filtered out {combination_count - len(combinations)} combinations")
 
 
     statdict = {}
 
     hw_cores = int(os.cpu_count())
     print(f"System has {hw_cores} hardware cores")
-    ram_available = psutil.virtual_memory().total
     ram_per_worker = 200*2**20
-    hw_max_ram_cores = int((0.60*ram_available)/ram_per_worker)
+    hw_max_ram_cores = int((0.50*ram_available)/ram_per_worker)
     print(f"System has enough memory for {hw_max_ram_cores} concurrent workers")
     hw_cores = min(hw_cores, hw_max_ram_cores)
     combination_count = len(combinations)
@@ -533,12 +564,18 @@ def main():
     def fix_stat_list(d : dict, k : str, must_len : int):
         v = d[k]
         vlen = len(v)
-        if vlen != must_len:
+        if vlen < must_len:
             d[k].extend([0]*(must_len-vlen))
+        elif vlen > must_len:
+            # This shouldn't happen, but who knows
+            del d[k][must_len:]
     # Ignore signals in the pool
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     pool = gem5mp.Pool(processes=max_workers,maxtasksperchild=1)
-    # terminate on sigint
+    # The previous signal call is supposed to return the "default"
+    # signal handler, but somehow it isn't a valid handler with gem5
+    # Therefore let's just set one that will terminate the program
+    # TODO: exit gracefully
     signal.signal(signal.SIGINT, lambda sig,frame : exit(0))
 
     out_file_count = 0;
@@ -571,7 +608,9 @@ def main():
                     fix_stat_list(result, k, must_len_new)
                     fix_stat_list(statdict, k, must_len_old)
                     statdict[k].extend(result[k])
-            if sys.getsizeof(statdict) > args.split_bytes:
+            # sys.getsizeof() won't give an accurate number, so let's estimate
+            dictsize = len(statdict[reference_key])*len(statdict)*8
+            if dictsize > args.split_bytes:
                 print("statdict too big, flushing to file")
                 h5_filepath = os.path.join(args.base_out_dir,
                                            f"stats{out_file_count}.h5")
@@ -597,7 +636,9 @@ def main():
 
     if statdict:
         final_df = pd.DataFrame(statdict)
-        final_df.to_hdf("TestDFfile.h5", 
+        h5_filepath = os.path.join(args.base_out_dir,
+                                   f"stats{out_file_count}.h5")
+        final_df.to_hdf(h5_filepath, 
                         "gem5stats", 
                         mode='w',
                         complevel=4,
