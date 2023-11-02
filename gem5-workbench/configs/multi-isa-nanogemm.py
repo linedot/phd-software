@@ -420,25 +420,96 @@ def simrun(isa,combo):
 
     print("Exiting @ tick %i because %s" % (m5.curTick(), exit_event.getCause()))
 
-    import sys
-    dictsize = sys.getsizeof(statdict)
-    if dictsize > 512*1024:
-        print(f"Huge dict: {dictsize} bytes. truncating")
-        must_len = len(statdict["system.cpu.numCycles"])
-        for k in statdict.keys():
-            del statdict[k][must_len:]
-        dictsize = sys.getsizeof(statdict)
-        print(f"New size: {dictsize}")
-    return statdict
 
+    reference_key = "system.cpu.numCycles"
+    def fix_stat_list(d : dict, k : str, must_len : int):
+        v = d[k]
+        vlen = len(v)
+        if vlen < must_len:
+            d[k].extend([0]*(must_len-vlen))
+        elif vlen > must_len:
+            # This shouldn't happen, but who knows
+            del d[k][must_len:]
+    for k in statdict.keys():
+       fix_stat_list(statdict, k, len(statdict[reference_key]))
+    return pd.DataFrame(statdict)
+
+
+def process_results(basename:str,
+                    out_dir:str,
+                    split_bytes:int,
+                    queue,
+                    end_event):
+
+    stat_df=pd.DataFrame()
+    
+    print("Starting processing loop")
+
+    df_list = []
+    df_merge_count = 100
+    out_file_count = 0
+    while not end_event.is_set() or not queue.empty():
+        print("One loop iteration")
+        result = queue.get()
+
+        if result.empty:
+            continue
+
+        #if not statdict:
+        #    statdict = result
+        #    for k in statdict.keys():
+        #       fix_stat_list(result, k, len(statdict[reference_key]))
+        #else:
+        #    must_len_old = len(statdict[reference_key])
+        #    must_len_new = len(result[reference_key])
+        #    for k in result.keys():
+        #        if k not in statdict:
+        #            statdict[k] = [0]*must_len_old
+        #        if k not in result:
+        #            result[k] = [0]*must_len_new
+        #        fix_stat_list(result, k, must_len_new)
+        #        fix_stat_list(statdict, k, must_len_old)
+        #        statdict[k].extend(result[k])
+
+        if stat_df.empty:
+            stat_df = result
+        else:
+            df_list.append(result)
+
+        if len(df_list) > df_merge_count:
+            stat_df = pd.concat([stat_df]+df_list)
+            df_list = []
+
+        if stat_df.memory_usage(index=True).sum() > split_bytes:
+            h5_filepath = os.path.join(out_dir,
+                                       f"{basename}{out_file_count}.h5")
+            #stat_df = pd.DataFrame(statdict)
+            stat_df.to_hdf(h5_filepath, 
+                           "gem5stats", 
+                           mode='w',
+                           complevel=4,
+                           complib='blosc:zstd')
+            out_file_count = out_file_count + 1
+            stat_df = pd.DataFrame()
+            #for v in statdict.values():
+            #    del v[:]
+
+    if not stat_df.empty:
+        h5_filepath = os.path.join(out_dir,
+                                   f"{basename}{out_file_count}.h5")
+        stat_df.to_hdf(h5_filepath, 
+                        "gem5stats", 
+                        mode='w',
+                        complevel=4,
+                        complib='blosc:zstd')
 
 def main():
     import resource
 
     ram_available = psutil.virtual_memory().total
     # Let's see if we can stop memuse explosions with this
-    softlimit = int(0.5*ram_available)
-    hardlimit = int(0.75*ram_available)
+    softlimit = int(0.75*ram_available)
+    hardlimit = int(0.9*ram_available)
     resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
     import m5
     parser = argparse.ArgumentParser(description="Run aarch64 m5 nanogemm benchmark for a given kernel size")
@@ -490,6 +561,13 @@ def main():
     parser.add_argument("--split_bytes", type=int,
                         metavar="split_bytes",
                         help='Write gathered stats to hdf5 file after internal struct reaches this size', default=4*2**30)
+    parser.add_argument("--stat_filename", type=str,
+                        metavar="stat_filename",
+                        help='Base name of the hdf5 file for stats, multiple files will be called stat_filename0.h5,stat_filename1.h5, etc...', default="statfile")
+    parser.add_argument("--tqdm_position", type=int,
+                        metavar="tqdm_position",
+                        help='where to place progress bar (useful when running multiple jobs on a cluster)',
+                        default=0)
     parser.add_argument("--quiet",
                         metavar="quiet",
                         help='Be silent (no stderr/stdout from simulations)',
@@ -544,8 +622,6 @@ def main():
     print(f"Filtered out {combination_count - len(combinations)} combinations")
 
 
-    statdict = {}
-
     hw_cores = int(os.cpu_count())
     print(f"System has {hw_cores} hardware cores")
     ram_per_worker = 200*2**20
@@ -560,17 +636,19 @@ def main():
     import tqdm
     import functools
     import signal
-    reference_key = "system.cpu.numCycles"
-    def fix_stat_list(d : dict, k : str, must_len : int):
-        v = d[k]
-        vlen = len(v)
-        if vlen < must_len:
-            d[k].extend([0]*(must_len-vlen))
-        elif vlen > must_len:
-            # This shouldn't happen, but who knows
-            del d[k][must_len:]
+    from gem5.utils.multiprocessing.context import gem5Context
     # Ignore signals in the pool
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    result_queue = gem5Context().Queue()
+    end_event = gem5Context().Event()
+    process_process = gem5Context().Process(target=process_results,
+                     args=(args.stat_filename,
+                      args.base_out_dir,
+                      args.split_bytes,
+                      result_queue,
+                      end_event))
+
+    process_process.start()
     pool = gem5mp.Pool(processes=max_workers,maxtasksperchild=1)
     # The previous signal call is supposed to return the "default"
     # signal handler, but somehow it isn't a valid handler with gem5
@@ -593,56 +671,23 @@ def main():
                 total=combination_count,
                 delay=1,
                 smoothing=0.1):
-            if not statdict:
-                statdict = result
-                for k in statdict.keys():
-                    fix_stat_list(result, k, len(statdict[reference_key]))
-            else:
-                must_len_old = len(statdict[reference_key])
-                must_len_new = len(result[reference_key])
-                for k in statdict.keys():
-                    if k not in statdict:
-                        statdict[k] = [0]*must_len_old
-                    if k not in result:
-                        result[k] = [0]*must_len_new
-                    fix_stat_list(result, k, must_len_new)
-                    fix_stat_list(statdict, k, must_len_old)
-                    statdict[k].extend(result[k])
-            # sys.getsizeof() won't give an accurate number, so let's estimate
-            dictsize = len(statdict[reference_key])*len(statdict)*8
-            if dictsize > args.split_bytes:
-                print("statdict too big, flushing to file")
-                h5_filepath = os.path.join(args.base_out_dir,
-                                           f"stats{out_file_count}.h5")
-                stat_df = pd.DataFrame(statdict)
-                stat_df.to_hdf(h5_filepath, 
-                               "gem5stats", 
-                               mode='w',
-                               complevel=4,
-                               complib='blosc:zstd')
-                print(f"wrote data to {h5_filepath}")
-                out_file_count = out_file_count + 1
-                print(f"resetting statdict")
-                for v in statdict.values():
-                    del v[:]
+            result_queue.put(result)
             sys.stdout.flush()
 
     except KeyboardInterrupt:
         print("Keyboard interrupt received, terminating pool")
         pool.terminate()
+        print("Setting end_event")
+        end_event.set()
+        result_queue.put(pd.DataFrame())
+        process_process.terminate()
     else:
         pool.close()
+        print("Setting end_event")
+        end_event.set()
+        result_queue.put(pd.DataFrame())
+        process_process.join()
     pool.join()
-
-    if statdict:
-        final_df = pd.DataFrame(statdict)
-        h5_filepath = os.path.join(args.base_out_dir,
-                                   f"stats{out_file_count}.h5")
-        final_df.to_hdf(h5_filepath, 
-                        "gem5stats", 
-                        mode='w',
-                        complevel=4,
-                        complib='blosc:zstd')
 
 
 if __name__ == "__main__":
