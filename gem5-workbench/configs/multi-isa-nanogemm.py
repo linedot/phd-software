@@ -332,9 +332,11 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
 
 
 def simrun(isa,combo):
+    print("Simrun checkin")
     import m5
     from m5.objects import Root
     import resource
+    print("m5 import checkin")
 
     # Should be inherited from parent process, but isn't
     # Suppress file creation
@@ -344,6 +346,8 @@ def simrun(isa,combo):
     m5.options.dot_config=False
     m5.options.dot_dvfs_config=False
     m5.core.setOutputDir("/dev/null")
+
+    print("m5 options checkin")
 
     # Let's see if we can stop memuse explosions with this
     softlimit = 12*1024*1024*1024
@@ -420,19 +424,12 @@ def simrun(isa,combo):
 
     print("Exiting @ tick %i because %s" % (m5.curTick(), exit_event.getCause()))
 
-    import sys
-    dictsize = sys.getsizeof(statdict)
-    if dictsize > 512*1024:
-        print(f"Huge dict: {dictsize} bytes. truncating")
-        must_len = len(statdict["system.cpu.numCycles"])
-        for k in statdict.keys():
-            del statdict[k][must_len:]
-        dictsize = sys.getsizeof(statdict)
-        print(f"New size: {dictsize}")
     return statdict
 
 
 def main():
+    import logging
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     import resource
 
     ram_available = psutil.virtual_memory().total
@@ -570,69 +567,99 @@ def main():
             # This shouldn't happen, but who knows
             del d[k][must_len:]
     # Ignore signals in the pool
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    pool = gem5mp.Pool(processes=max_workers,maxtasksperchild=1)
+    #signal.signal(signal.SIGINT, signal.SIG_IGN)
+    #pool = gem5mp.Pool(processes=max_workers,maxtasksperchild=1)
     # The previous signal call is supposed to return the "default"
     # signal handler, but somehow it isn't a valid handler with gem5
     # Therefore let's just set one that will terminate the program
     # TODO: exit gracefully
-    signal.signal(signal.SIGINT, lambda sig,frame : exit(0))
+    #signal.signal(signal.SIGINT, lambda sig,frame : exit(0))
 
     out_file_count = 0;
     import sys
     os.makedirs(args.base_out_dir,exist_ok=True)
-    try:
-        for result in tqdm.tqdm(pool.imap_unordered(
-                functools.partial(
-                    simrun, isa
-                    ),
-                    combinations
-                ),
-                unit='sim',
-                desc='Simulating: ',
-                total=combination_count,
-                delay=1,
-                smoothing=0.1):
-            if not statdict:
-                statdict = result
-                for k in statdict.keys():
-                    fix_stat_list(result, k, len(statdict[reference_key]))
-            else:
-                must_len_old = len(statdict[reference_key])
-                must_len_new = len(result[reference_key])
-                for k in statdict.keys():
-                    if k not in statdict:
-                        statdict[k] = [0]*must_len_old
-                    if k not in result:
-                        result[k] = [0]*must_len_new
-                    fix_stat_list(result, k, must_len_new)
-                    fix_stat_list(statdict, k, must_len_old)
-                    statdict[k].extend(result[k])
-            # sys.getsizeof() won't give an accurate number, so let's estimate
-            dictsize = len(statdict[reference_key])*len(statdict)*8
-            if dictsize > args.split_bytes:
-                print("statdict too big, flushing to file")
-                h5_filepath = os.path.join(args.base_out_dir,
-                                           f"stats{out_file_count}.h5")
-                stat_df = pd.DataFrame(statdict)
-                stat_df.to_hdf(h5_filepath, 
-                               "gem5stats", 
-                               mode='w',
-                               complevel=4,
-                               complib='blosc:zstd')
-                print(f"wrote data to {h5_filepath}")
-                out_file_count = out_file_count + 1
-                print(f"resetting statdict")
-                for v in statdict.values():
-                    del v[:]
-            sys.stdout.flush()
 
-    except KeyboardInterrupt:
-        print("Keyboard interrupt received, terminating pool")
-        pool.terminate()
-    else:
-        pool.close()
-    pool.join()
+    from dask_jobqueue import SLURMCluster
+    from dask.distributed import Client,as_completed
+    #try:
+
+    cluster = SLURMCluster(
+            queue="batch",
+            account="exalab",
+            nanny=True,
+            cores=1,
+            memory="20G",
+            processes=1,
+            job_mem="20G")
+
+    cluster.scale(1)
+    client = Client(cluster)
+
+    #sim_params = client.scatter([(isa, combo) for combo in combinations])
+    sim_params = [(isa, combo) for combo in range(1)]
+
+    #futures = client.map(simrun, *sim_params)
+    def testfun(isa, combo):
+        import time
+        time.sleep(1)
+        print(f"Combination {combo} scheduled")
+        return {}
+    futures = client.map(testfun, *sim_params)
+
+    for future in tqdm.tqdm(
+            as_completed(futures),
+            #pool.imap_unordered(
+            #functools.partial(
+            #    simrun, isa
+            #    ),
+            #    combinations
+            #),
+            unit='sim',
+            desc='Simulating: ',
+            total=combination_count,
+            delay=1,
+            smoothing=0.1):
+        result = future.result()
+        if not statdict:
+            statdict = result
+            for k in statdict.keys():
+                fix_stat_list(result, k, len(statdict[reference_key]))
+        else:
+            must_len_old = len(statdict[reference_key])
+            must_len_new = len(result[reference_key])
+            for k in statdict.keys():
+                if k not in statdict:
+                    statdict[k] = [0]*must_len_old
+                if k not in result:
+                    result[k] = [0]*must_len_new
+                fix_stat_list(result, k, must_len_new)
+                fix_stat_list(statdict, k, must_len_old)
+                statdict[k].extend(result[k])
+        # sys.getsizeof() won't give an accurate number, so let's estimate
+        dictsize = len(statdict[reference_key])*len(statdict)*8
+        if dictsize > args.split_bytes:
+            print("statdict too big, flushing to file")
+            h5_filepath = os.path.join(args.base_out_dir,
+                                       f"stats{out_file_count}.h5")
+            stat_df = pd.DataFrame(statdict)
+            stat_df.to_hdf(h5_filepath, 
+                           "gem5stats", 
+                           mode='w',
+                           complevel=4,
+                           complib='blosc:zstd')
+            print(f"wrote data to {h5_filepath}")
+            out_file_count = out_file_count + 1
+            print(f"resetting statdict")
+            for v in statdict.values():
+                del v[:]
+        sys.stdout.flush()
+
+    #except KeyboardInterrupt:
+    #    print("Keyboard interrupt received, terminating pool")
+    #    pool.terminate()
+    #else:
+    #    pool.close()
+    #pool.join()
 
     if statdict:
         final_df = pd.DataFrame(statdict)
