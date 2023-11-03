@@ -504,14 +504,21 @@ def process_results(basename:str,
                         complib='blosc:zstd')
 
 def main():
+    import functools
     import resource
+    import signal
+    import sys
+    import tqdm
+
+    import gem5.utils.multiprocessing as gem5mp
+    import m5
+    from gem5.utils.multiprocessing.context import gem5Context
 
     ram_available = psutil.virtual_memory().total
     # Let's see if we can stop memuse explosions with this
     softlimit = int(0.75*ram_available)
     hardlimit = int(0.9*ram_available)
     resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
-    import m5
     parser = argparse.ArgumentParser(description="Run aarch64 m5 nanogemm benchmark for a given kernel size")
     parser.add_argument("--isa", metavar="isa", help='ISA to use (aarch64,riscv64)', required=True)
     parser.add_argument("--mr", nargs='+', type=int,
@@ -631,12 +638,6 @@ def main():
     combination_count = len(combinations)
     print(f"Number of combinations: {combination_count}")
     max_workers = min(hw_cores, combination_count)
-
-    import gem5.utils.multiprocessing as gem5mp
-    import tqdm
-    import functools
-    import signal
-    from gem5.utils.multiprocessing.context import gem5Context
     # Ignore signals in the pool
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     result_queue = gem5Context().Queue()
@@ -660,8 +661,6 @@ def main():
         exit(-1)
     signal.signal(signal.SIGINT, stop_processes_and_exit)
 
-    out_file_count = 0;
-    import sys
     os.makedirs(args.base_out_dir,exist_ok=True)
     try:
         for result in tqdm.tqdm(pool.imap_unordered(
@@ -674,7 +673,8 @@ def main():
                 desc='Simulating: ',
                 total=combination_count,
                 delay=1,
-                smoothing=0.1):
+                smoothing=0.1,
+                position=args.tqdm_position):
             result_queue.put(result)
             sys.stdout.flush()
 
