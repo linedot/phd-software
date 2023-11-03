@@ -654,7 +654,11 @@ def main():
     # signal handler, but somehow it isn't a valid handler with gem5
     # Therefore let's just set one that will terminate the program
     # TODO: exit gracefully
-    signal.signal(signal.SIGINT, lambda sig,frame : exit(0))
+    def stop_processes_and_exit(sig,frame):
+        pool.terminate()
+        process_process.terminate()
+        exit(-1)
+    signal.signal(signal.SIGINT, stop_processes_and_exit)
 
     out_file_count = 0;
     import sys
