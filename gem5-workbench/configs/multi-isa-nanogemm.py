@@ -52,6 +52,7 @@ def prepare_statdict(statmap):
     statdict["ld_count"] = []
     statdict["st_count"] = []
     statdict["l1_size"] = []
+    statdict["iq_size"] = []
     statdict["rob_size"] = []
     statdict["assoc"] = []
     statdict["decode_width"] = []
@@ -179,6 +180,7 @@ def setup_cpu(isa:str,
               simd_lat:int, simd_count:int, 
               simd_width:int, simd_phreg_count:int,
               ld_count:int, st_count:int,
+              iq_size:int,
               rob_size:int,
               assoc:int, l1_size:int,
               decode_width:int, commit_width:int,
@@ -209,6 +211,7 @@ def setup_cpu(isa:str,
     cpu.commitWidth=commit_width
 
     cpu.numROBEntries = rob_size
+    cpu.numIQEntries = iq_size
     cpu.numPhysFloatRegs = simd_phreg_count
     cpu.numPhysVecRegs = simd_phreg_count
 
@@ -351,11 +354,12 @@ def simrun(isa,combo):
     resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
 
 
-    mr,nr,simd_lat,simd_count,simd_width,simd_phreg_count,ld_count,st_count,l1_size,rob_size,assoc,decode_width,commit_width,fetch_buf_size = combo
+    mr,nr,simd_lat,simd_count,simd_width,simd_phreg_count,ld_count,st_count,l1_size,iq_size,rob_size,assoc,decode_width,commit_width,fetch_buf_size = combo
     cpu = setup_cpu(isa=isa,
                     simd_lat=simd_lat, simd_count=simd_count, 
                     simd_width=simd_width, simd_phreg_count=simd_phreg_count,
                     ld_count=ld_count, st_count=st_count,
+                    iq_size=iq_size,
                     rob_size=rob_size,
                     assoc=assoc, l1_size=l1_size,
                     decode_width=decode_width,
@@ -405,6 +409,7 @@ def simrun(isa,combo):
             statdict["ld_count"].append(ld_count)
             statdict["st_count"].append(st_count)
             statdict["l1_size"].append(l1_size)
+            statdict["iq_size"].append(iq_size)
             statdict["rob_size"].append(rob_size)
             statdict["assoc"].append(assoc)
             statdict["decode_width"].append(decode_width)
@@ -449,7 +454,6 @@ def process_results(basename:str,
     df_merge_count = 100
     out_file_count = 0
     while not end_event.is_set() or not queue.empty():
-        print("One loop iteration")
         result = queue.get()
 
         if result.empty:
@@ -493,6 +497,12 @@ def process_results(basename:str,
             stat_df = pd.DataFrame()
             #for v in statdict.values():
             #    del v[:]
+    if df_list:
+        if stat_df.empty:
+            stat_df = pd.concat(df_list)
+        else:
+            stat_df = pd.concat([stat_df]+df_list)
+        df_list = []
 
     if not stat_df.empty:
         h5_filepath = os.path.join(out_dir,
@@ -540,6 +550,10 @@ def main():
     parser.add_argument("--simd_phreg_count", nargs='+', type=int,
                         metavar="simd_phreg_count",
                         help='Number of physical SIMD registers', required=True)
+    parser.add_argument("--iq_size", metavar="iq_size",
+                        nargs='+', type=int,
+                        help='Number of IQ (instruction queue) entries',
+                        required=True)
     parser.add_argument("--rob_size", metavar="rob_size",
                         nargs='+', type=int,
                         help='Number of ROB (reorder buffer) entries',
@@ -610,6 +624,7 @@ def main():
                    args.simd_phreg_count,
                    args.ld_count,args.st_count,
                    args.l1_size,
+                   args.iq_size,
                    args.rob_size,
                    args.assoc,
                    args.decode_width,
@@ -686,6 +701,10 @@ def main():
         result_queue.put(pd.DataFrame())
         process_process.terminate()
     else:
+        import time
+        while not result_queue.empty():
+            print("Waiting for result queue to empty")
+            time.sleep(1)
         pool.close()
         print("Setting end_event")
         end_event.set()
