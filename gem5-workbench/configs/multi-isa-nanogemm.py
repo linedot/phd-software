@@ -439,8 +439,12 @@ def simrun(isa,combo):
        fix_stat_list(statdict, k, len(statdict[reference_key]))
     simrun.q.put(pd.DataFrame(statdict))
 
-def simrun_init(result_queue):
-    simrun.q = result_queue
+def simrun_init(result_queues):
+
+    from gem5.utils.multiprocessing.context import gem5Context
+    
+    queue_id = int(gem5Context().current_process().name.split('-')[1])%len(result_queues)
+    simrun.q = result_queues[queue_id]
 
 
 def process_results(basename:str,
@@ -527,6 +531,7 @@ def process_results(basename:str,
                         complib='blosc:zstd')
         del stat_df
         gc.collect()
+
 
 def main():
     import functools
@@ -652,18 +657,26 @@ def main():
     print(f"Number of combinations: {combination_count}")
     max_workers = min(hw_cores, combination_count)
     max_workers = min(max_workers,128) # 256 workers on jusuf seems to be slow?
+
+    sims_per_dataprocs = 16
+
+    dp_worker_count = max_workers//sims_per_dataprocs
+    sim_worker_count = max_workers - dp_worker_count
+
+    result_queues = [gem5Context().Queue() for i in range(dp_worker_count)]
+
     # Ignore signals in the pool
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    result_queue = gem5Context().Queue()
     end_event = gem5Context().Event()
-    process_process = gem5Context().Process(target=process_results,
-                     args=(args.stat_filename,
+    dp_processes = [gem5Context().Process(target=process_results,
+                     args=(args.stat_filename+f"_dp{i}_",
                       args.base_out_dir,
                       args.split_bytes,
-                      result_queue,
-                      end_event))
+                      result_queues[i],
+                      end_event)) for i in range(dp_worker_count)]
 
-    process_process.start()
+    for p in dp_processes:
+        p.start()
 
     # Suppress file creation
     m5.options.outdir="/dev/null"
@@ -682,17 +695,18 @@ def main():
         m5.options.stderr_file="/dev/null"
         m5.options.stdout_file="/dev/null"
 
-    pool = gem5mp.Pool(processes=max_workers,
+    pool = gem5mp.Pool(processes=sim_worker_count,
                        maxtasksperchild=1,
                        initializer=simrun_init,
-                       initargs=(result_queue,))
+                       initargs=(result_queues,))
     # The previous signal call is supposed to return the "default"
     # signal handler, but somehow it isn't a valid handler with gem5
     # Therefore let's just set one that will terminate the program
     # TODO: exit gracefully
     def stop_processes_and_exit(sig,frame):
         pool.terminate()
-        process_process.terminate()
+        for p in dp_processes:
+            p.terminate()
         exit(-1)
     signal.signal(signal.SIGINT, stop_processes_and_exit)
 
@@ -718,18 +732,18 @@ def main():
         pool.terminate()
         print("Setting end_event")
         end_event.set()
-        result_queue.put(pd.DataFrame())
-        process_process.terminate()
+        for q in result_queues:
+            q.put(pd.DataFrame())
+        for p in dp_processes:
+            p.terminate()
     else:
-        import time
-        while not result_queue.empty():
-            print("Waiting for result queue to empty")
-            time.sleep(1)
         pool.close()
         print("Setting end_event")
         end_event.set()
-        result_queue.put(pd.DataFrame())
-        process_process.join()
+        for q in result_queues:
+            q.put(pd.DataFrame())
+        for p in dp_processes:
+            p.join()
     pool.join()
 
 
