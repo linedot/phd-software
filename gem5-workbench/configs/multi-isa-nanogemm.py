@@ -437,7 +437,10 @@ def simrun(isa,combo):
             del d[k][must_len:]
     for k in statdict.keys():
        fix_stat_list(statdict, k, len(statdict[reference_key]))
-    return pd.DataFrame(statdict)
+    simrun.q.put(pd.DataFrame(statdict))
+
+def simrun_init(result_queue):
+    simrun.q = result_queue
 
 
 def process_results(basename:str,
@@ -445,6 +448,7 @@ def process_results(basename:str,
                     split_bytes:int,
                     queue,
                     end_event):
+    import gc
 
     stat_df=pd.DataFrame()
     
@@ -482,18 +486,24 @@ def process_results(basename:str,
 
         if len(df_list) > df_merge_count:
             stat_df = pd.concat([stat_df]+df_list)
+            for df in df_list:
+                del df
+            gc.collect()
             df_list = []
 
         if stat_df.memory_usage(index=True).sum() > split_bytes:
             h5_filepath = os.path.join(out_dir,
                                        f"{basename}{out_file_count}.h5")
             #stat_df = pd.DataFrame(statdict)
+            print(f"Saving partial data to {h5_filepath}")
             stat_df.to_hdf(h5_filepath, 
                            "gem5stats", 
                            mode='w',
                            complevel=4,
                            complib='blosc:zstd')
             out_file_count = out_file_count + 1
+            del stat_df
+            gc.collect()
             stat_df = pd.DataFrame()
             #for v in statdict.values():
             #    del v[:]
@@ -502,6 +512,9 @@ def process_results(basename:str,
             stat_df = pd.concat(df_list)
         else:
             stat_df = pd.concat([stat_df]+df_list)
+        for df in df_list:
+            del df
+        gc.collect()
         df_list = []
 
     if not stat_df.empty:
@@ -512,6 +525,8 @@ def process_results(basename:str,
                         mode='w',
                         complevel=4,
                         complib='blosc:zstd')
+        del stat_df
+        gc.collect()
 
 def main():
     import functools
@@ -599,23 +614,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Suppress file creation
-    m5.options.outdir="/dev/null"
-    m5.options.no_output_files=True
-    m5.options.dump_config=False
-    m5.options.json_config=False
-    m5.options.dot_config=False
-    m5.options.dot_dvfs_config=False
-    m5.core.setOutputDir("/dev/null")
-    if args.quiet:
-        # Suppress spamming the terminal
-        m5.options.quiet=True
-        m5.options.redirect_stderr=True
-        m5.options.redirect_stdout=True
-        m5.options.silent_redirect=True
-        m5.options.stderr_file="/dev/null"
-        m5.options.stdout_file="/dev/null"
-
 
     # Create parameter combinations
 
@@ -653,6 +651,7 @@ def main():
     combination_count = len(combinations)
     print(f"Number of combinations: {combination_count}")
     max_workers = min(hw_cores, combination_count)
+    max_workers = min(max_workers,128) # 256 workers on jusuf seems to be slow?
     # Ignore signals in the pool
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     result_queue = gem5Context().Queue()
@@ -665,7 +664,28 @@ def main():
                       end_event))
 
     process_process.start()
-    pool = gem5mp.Pool(processes=max_workers,maxtasksperchild=1)
+
+    # Suppress file creation
+    m5.options.outdir="/dev/null"
+    m5.options.no_output_files=True
+    m5.options.dump_config=False
+    m5.options.json_config=False
+    m5.options.dot_config=False
+    m5.options.dot_dvfs_config=False
+    m5.core.setOutputDir("/dev/null")
+    if args.quiet:
+        # Suppress spamming the terminal
+        m5.options.quiet=True
+        m5.options.redirect_stderr=True
+        m5.options.redirect_stdout=True
+        m5.options.silent_redirect=True
+        m5.options.stderr_file="/dev/null"
+        m5.options.stdout_file="/dev/null"
+
+    pool = gem5mp.Pool(processes=max_workers,
+                       maxtasksperchild=1,
+                       initializer=simrun_init,
+                       initargs=(result_queue,))
     # The previous signal call is supposed to return the "default"
     # signal handler, but somehow it isn't a valid handler with gem5
     # Therefore let's just set one that will terminate the program
@@ -690,7 +710,7 @@ def main():
                 delay=1,
                 smoothing=0.1,
                 position=args.tqdm_position):
-            result_queue.put(result)
+            #result_queue.put(result)
             sys.stdout.flush()
 
     except KeyboardInterrupt:
