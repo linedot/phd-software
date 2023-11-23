@@ -658,7 +658,7 @@ def main():
     max_workers = min(hw_cores, combination_count)
     max_workers = min(max_workers,128) # 256 workers on jusuf seems to be slow?
 
-    sims_per_dataprocs = 16
+    sims_per_dataprocs = 32
 
     dp_worker_count = max_workers//sims_per_dataprocs
     sim_worker_count = max_workers - dp_worker_count

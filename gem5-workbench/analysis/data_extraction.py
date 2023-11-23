@@ -50,7 +50,7 @@ def build_df(directory: os.PathLike,
     ram_available = psutil.virtual_memory().total
     hw_cores = int(os.cpu_count())
     print(f"System has {hw_cores} hardware cores")
-    ram_per_worker = 1000*2**20
+    ram_per_worker = 20000*2**20
     hw_max_ram_cores = int((0.50*ram_available)/ram_per_worker)
     print(f"System has enough memory for {hw_max_ram_cores} concurrent workers")
     hw_cores = min(hw_cores, hw_max_ram_cores)
