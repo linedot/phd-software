@@ -3,6 +3,8 @@ import pandas
 import os
 import sys
 
+from typing import Union
+
 MIN_PYTHON = (3, 9)
 if sys.version_info < MIN_PYTHON:
     sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
@@ -17,8 +19,9 @@ index_params = ["mr","nr",
                 "fetch_buf_size",
                 "run"]
 
-def extract_target(target_stat:str,
-                   statfile_path:os.PathLike):
+def extract_target(select_stats  :dict[str,int],
+                   target_stats  :Union[str,list[str]],
+                   statfile_path :os.PathLike):
     try:
         df = pandas.read_hdf(statfile_path, key="gem5stats")
     except Exception as exc:
@@ -28,10 +31,20 @@ def extract_target(target_stat:str,
             df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
     df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
 
-    return df[index_params+[target_stat]]
+    selector = " & ".join([f"(df['{key}'] == {value})" for key,value in select_stats.items()])
+    if selector:
+        df = df[eval(selector)]
+    if isinstance(target_stats,str):
+        if "all" == target_stats:
+            return df
+        else:
+            raise RuntimeError(f"Invalid value: target_stats=\"{target_stats}\"")
+    else:
+        return df[index_params+target_stats]
 
 def build_df(directory: os.PathLike,
-             target_stat: str):
+             select_stats: dict,
+             target_stats: Union[str,list[str]] = "all" ):
     import tqdm
     import multiprocessing as mp
     from multiprocessing.pool import Pool
@@ -64,7 +77,8 @@ def build_df(directory: os.PathLike,
                 pool.imap_unordered(
                     functools.partial(
                         extract_target,
-                        target_stat
+                        select_stats,
+                        target_stats
                         ),
                         statfile_list
                     ),
