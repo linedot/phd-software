@@ -52,9 +52,9 @@ def pareto(df : pandas.DataFrame,
     for th in target_thresholds:
         print(f"pareto for {target_stat} > {th}")
         tdf = df[df[target_stat] > th].copy()
-        tdf["pareto_threshold"] = th
         if tdf.empty:
             continue
+        tdf["pareto_threshold"] = th
 
         astat_max_dict = {astat: tdf[astat].max()
                           for astat in analysis_stats}
@@ -82,8 +82,8 @@ def pareto(df : pandas.DataFrame,
                 
                 # for the next stat, this value will be set to the minimized value instead of max
                 astat_datapoint_dict[astat] = astat_dp_val
-            print(f"pareto datapoint {stats} = {[astat_datapoint_dict[stat] for stat in stats]}")
             datapoint = tuple(astat_datapoint_dict[astat] for astat in analysis_stats)
+            print(f"pareto datapoint {analysis_stats} = {datapoint}")
             if datapoint not in pareto_datapoints:
                 pareto_datapoints.append(datapoint)
                 selector = " & ".join([f"(tdf['{stat}'] == {vmax})"
