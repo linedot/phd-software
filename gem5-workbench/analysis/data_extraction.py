@@ -31,9 +31,9 @@ def extract_target(select_stats  :dict[str,int],
             df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
     df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
 
-    selector = " & ".join([f"(df['{key}'] == {value})" for key,value in select_stats.items()])
+    selector = " & ".join([f"{key} == {value}" for key,value in select_stats.items()])
     if selector:
-        df = df[eval(selector)]
+        df = df.query(selector)
     if isinstance(target_stats,str):
         if "all" == target_stats:
             return df

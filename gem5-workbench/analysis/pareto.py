@@ -65,10 +65,10 @@ def pareto(df : pandas.DataFrame,
             astat_datapoint_dict = astat_max_dict.copy()
             for astat in stats:
                 # Fix the stats we are not minimizing
-                selector = " & ".join([f"(tdf['{stat}'] == {vmax})"
+                selector = " & ".join([f"{stat} == {vmax}"
                                        for stat,vmax in astat_datapoint_dict.items() 
                                        if stat != astat])
-                adf = tdf[eval(selector)]
+                adf = tdf.query(selector)
 
                 # Get index of row with the smallest target_stat
                 idx_min_t = adf[target_stat].idxmin()
@@ -86,9 +86,9 @@ def pareto(df : pandas.DataFrame,
             print(f"pareto datapoint {analysis_stats} = {datapoint}")
             if datapoint not in pareto_datapoints:
                 pareto_datapoints.append(datapoint)
-                selector = " & ".join([f"(tdf['{stat}'] == {vmax})"
-                           for stat,vmax in astat_datapoint_dict.items()])
-                df_list.append(tdf[eval(selector)])
+                selector = " & ".join([f"{stat} == {vmax}"
+                                       for stat,vmax in astat_datapoint_dict.items()])
+                df_list.append(tdf.query(selector))
     pareto_df = pandas.concat(df_list)
     print(pareto_df.to_string())
     return pareto_df
@@ -165,9 +165,9 @@ def main():
         nonlocal cbar_ax
 
         ax.cla()
-        selector = " & ".join([f"(df['{key}'] == {slider.val})" for key,slider in variable_param_sliders.items()])
+        selector = " & ".join([f"{key} == {slider.val}" for key,slider in variable_param_sliders.items()])
         if selector:
-            df_specific = df[eval(selector)]
+            df_specific = df.query(selector)
         else:
             df_specific = df
 
