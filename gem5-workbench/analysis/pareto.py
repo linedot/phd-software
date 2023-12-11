@@ -50,7 +50,7 @@ def pareto(df : pandas.DataFrame,
 
     pareto_datapoints = []
     for th in target_thresholds:
-        print(f"pareto for {target_stat} > {th}")
+        #print(f"pareto for {target_stat} > {th}")
         tdf = df[df[target_stat] > th].copy()
         if tdf.empty:
             continue
@@ -69,6 +69,8 @@ def pareto(df : pandas.DataFrame,
                                        for stat,vmax in astat_datapoint_dict.items() 
                                        if stat != astat])
                 adf = tdf.query(selector)
+                if adf.empty:
+                    continue
 
                 # Get index of row with the smallest target_stat
                 idx_min_t = adf[target_stat].idxmin()
@@ -83,7 +85,7 @@ def pareto(df : pandas.DataFrame,
                 # for the next stat, this value will be set to the minimized value instead of max
                 astat_datapoint_dict[astat] = astat_dp_val
             datapoint = tuple(astat_datapoint_dict[astat] for astat in analysis_stats)
-            print(f"pareto datapoint {analysis_stats} = {datapoint}")
+            #print(f"pareto datapoint {analysis_stats} = {datapoint}")
             if datapoint not in pareto_datapoints:
                 pareto_datapoints.append(datapoint)
                 selector = " & ".join([f"{stat} == {vmax}"
@@ -133,9 +135,11 @@ def main():
 
     slider_y_step = min(0.05,0.5/len(variable_param_lists))
     
-    grid_kws = {'width_ratios': (0.9, 0.05), 'wspace': 0.2}
-    fig, (ax, cbar_ax) = plt.subplots(1,2,gridspec_kw=grid_kws)
-    fig.subplots_adjust(bottom=0.6,right=0.85)
+    grid_kws = {'width_ratios': (1.0,), 'wspace': 0.2}
+    fig, ax = plt.subplots(1,1,gridspec_kw=grid_kws)
+    fig.subplots_adjust(
+            bottom=0.2+slider_y_step*(len(variable_param_lists)+1),
+            right=1.0)
 
     variable_param_axes = {key : 
                            fig.add_axes(
@@ -159,12 +163,46 @@ def main():
     target_thresholds = [float(th) for th in args.target_thresholds]
 
 
+    threshold_ax = fig.add_axes(
+            [0.25,0.1+len(variable_param_lists)*slider_y_step,0.65,0.03]
+            )
+
+    threshold_slider = Slider(
+            ax=threshold_ax,
+            label="$\\epsilon_{FP,thresh}$",
+            valmin=min(target_thresholds),
+            valmax=max(target_thresholds),
+            valinit=target_thresholds[0],
+            valstep=target_thresholds,
+            initcolor="none"
+            )
+    full_pareto_df = pandas.DataFrame()
+
+    def update_threshold(val):
+        nonlocal ax
+        nonlocal full_pareto_df
+
+        ax.cla()
+        pareto_df = full_pareto_df[full_pareto_df["pareto_threshold"] == threshold_slider.val]
+
+        sp = sns.scatterplot(ax=ax, data=pareto_df, 
+                        x=args.analysis_stat[0],
+                        y=args.analysis_stat[1],
+                        hue=args.analysis_stat[2])
+
+        ax.set_xlabel(param_tex_names[args.analysis_stat[0]])
+        ax.set_ylabel(param_tex_names[args.analysis_stat[1]])
+        sp.legend(title=param_tex_names[args.analysis_stat[2]])
+
+        ax.set(
+                xlim=(df[args.analysis_stat[0]].min(),df[args.analysis_stat[0]].max()),
+                ylim=(df[args.analysis_stat[1]].min(),df[args.analysis_stat[1]].max()),
+                )
 
     def update_plot(val):
         nonlocal ax
-        nonlocal cbar_ax
+        nonlocal full_pareto_df
 
-        ax.cla()
         selector = " & ".join([f"{key} == {slider.val}" for key,slider in variable_param_sliders.items()])
         if selector:
             df_specific = df.query(selector)
@@ -176,15 +214,19 @@ def main():
         df_specific.reset_index(drop = True, inplace = True)
 
 
-        pareto(df=df_specific, 
+        full_pareto_df = pareto(df=df_specific, 
                analysis_stats=args.analysis_stat, 
                target_stat=args.target_stat, 
                target_thresholds=target_thresholds)
+
+        update_threshold(val)
 
     update_plot(0)
 
     for k,v in variable_param_sliders.items():
         v.on_changed(update_plot)
+
+    threshold_slider.on_changed(update_threshold)
 
     plt.show()
 
