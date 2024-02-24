@@ -16,3 +16,9 @@
 [submodule "gem5-workbench/benchmarks/NPB3.0-omp-C"]
 	path = gem5-workbench/benchmarks/NPB3.0-omp-C
 	url = https://github.com/benchmark-subsetting/NPB3.0-omp-C
+[submodule "asmgen"]
+	path = asmgen
+	url = https://github.com/linedot/asmgen
+[submodule "asmgen-gemm"]
+	path = asmgen-gemm
+	url = https://github.com/linedot/asmgen-gemm

@@ -63,7 +63,7 @@ thispath = os.path.dirname(os.path.realpath(__file__))
 binary = os.path.join(
     thispath,
     "../",
-    "binaries/arm/bt.S.x",
+    "binaries/aarch64/bt.S",
 )
 
 system.workload = SEWorkload.init_compatible(binary)

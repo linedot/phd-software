@@ -1,5 +1,4 @@
 from m5.objects import *
-from common.cores.arm.O3_ARM_v7a import *
 from common.Caches import *
 
 # Sources for this configuration:
@@ -97,6 +96,20 @@ class O3_ARM_Neoverse_N1_FP(FUDesc):
 
     count = 2 
 
+class O3_ARM_Neoverse_N1_Vec(FUDesc):
+    opList = [
+                 OpDesc(opClass='VectorFloatArith', opLat=4),
+                 OpDesc(opClass='VectorFloatConvert', opLat=4),
+                 OpDesc(opClass='VectorFloatReduce', opLat=4),
+                 OpDesc(opClass='VectorIntegerArith', opLat=4),
+                 OpDesc(opClass='VectorIntegerReduce', opLat=4),
+                 OpDesc(opClass='VectorMisc', opLat=4),
+                 OpDesc(opClass='VectorConfig', opLat=1),
+             ]
+
+    count = 2 
+
+
 # This class refers to pipelines Branch0, Integer single Cycles 0, Integer single Cycle 1 (symbol B and S in (2) table 3)
 class O3_ARM_Neoverse_N1_Simple_Int(FUDesc):
     opList = [ OpDesc(opClass='IntAlu', opLat=1) ] # Aarch64 ALU (Unfortunately branches are put together with IntALU :(
@@ -111,11 +124,27 @@ class O3_ARM_Neoverse_N1_Complex_Int(FUDesc):
     count = 1 # 1 units
 
 # This class refers to Load/Store0/1 (symbol L in Neoverse guide table 3-1)
-class O3_ARM_Neoverse_N1_LoadStore(FUDesc):
+#class O3_ARM_Neoverse_N1_LoadStore(FUDesc):
+#    opList = [ OpDesc(opClass='MemRead'), 
+#               OpDesc(opClass='FloatMemRead'),
+#               OpDesc(opClass='MemWrite'),
+#               OpDesc(opClass='FloatMemWrite') ]
+#    count = 2 #
+
+class O3_ARM_Neoverse_N1_Load(FUDesc):
     opList = [ OpDesc(opClass='MemRead'), 
-               OpDesc(opClass='FloatMemRead'),
-               OpDesc(opClass='MemWrite'),
-               OpDesc(opClass='FloatMemWrite') ]
+               OpDesc(opClass='FloatMemRead'), 
+               OpDesc(opClass='VectorUnitStrideLoad'), 
+               OpDesc(opClass='VectorStridedLoad'), 
+               OpDesc(opClass='VectorWholeRegisterLoad') ]
+    count = 2 #
+
+class O3_ARM_Neoverse_N1_Store(FUDesc):
+    opList = [ OpDesc(opClass='MemWrite'),
+               OpDesc(opClass='FloatMemWrite'), 
+               OpDesc(opClass='VectorUnitStrideStore'), 
+               OpDesc(opClass='VectorStridedStore'), 
+               OpDesc(opClass='VectorWholeRegisterStore') ]
     count = 2 #
 
 class O3_ARM_Neoverse_N1_PredAlu(FUDesc):
@@ -126,9 +155,12 @@ class O3_ARM_Neoverse_N1_PredAlu(FUDesc):
 class O3_ARM_Neoverse_N1_FUP(FUPool):
     FUList = [O3_ARM_Neoverse_N1_Simple_Int(),
               O3_ARM_Neoverse_N1_Complex_Int(),
-              O3_ARM_Neoverse_N1_LoadStore(),
+#              O3_ARM_Neoverse_N1_LoadStore(),
+              O3_ARM_Neoverse_N1_Load(),
+              O3_ARM_Neoverse_N1_Store(),
               O3_ARM_Neoverse_N1_PredAlu(),
-              O3_ARM_Neoverse_N1_FP()]
+              O3_ARM_Neoverse_N1_FP(),
+              O3_ARM_Neoverse_N1_Vec()]
 
 # Bi-Mode Branch Predictor
 class O3_ARM_Neoverse_N1_BP(BiModeBP):
@@ -136,12 +168,16 @@ class O3_ARM_Neoverse_N1_BP(BiModeBP):
     globalCtrBits = 2
     choicePredictorSize = 8192
     choiceCtrBits = 2
-    BTBEntries = 4096
-    BTBTagSize = 18
-    RASSize = 16
-    instShiftAmt = 2
+    #BTBEntries = 4096
+    #BTBTagSize = 18
+    #RASSize = 16
+    #instShiftAmt = 2
+    BiModeBP.btb.numEntries = 4096
+    BiModeBP.btb.tagBits = 18
+    BiModeBP.ras.numEntries = 16
+    BiModeBP.btb.instShiftAmt = 2
 
-class O3_ARM_Neoverse_N1(DerivO3CPU):
+class O3_ARM_Neoverse_N1_Base(BaseO3CPU):
     decodeToFetchDelay = 1
     renameToFetchDelay = 1
     iewToFetchDelay = 1
@@ -189,3 +225,22 @@ class O3_ARM_Neoverse_N1(DerivO3CPU):
     LFSTSize = 1024
     SSITSize = 1024
 
+class O3_ARM_Neoverse_N1(BaseO3CPU, ArmCPU):
+    mmu = ArmMMU()    
+    numPhysCCRegs = Self.numPhysIntRegs * 5
+
+    def addCheckerCpu(self):
+        self.checker = ArmO3Checker(
+            workload=self.workload,
+            exitOnError=False,
+            updateOnError=True,
+            warnOnlyOnLoadError=True,
+        )
+        self.checker.mmu.itb.size = self.mmu.itb.size
+        self.checker.mmu.dtb.size = self.mmu.dtb.size
+        self.checker.cpu_id = self.cpu_id
+
+
+
+class O3_ARM_Neoverse_N1_but_RISCV(BaseO3CPU, RiscvCPU):
+    mmu = RiscvMMU
