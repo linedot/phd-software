@@ -1,6 +1,8 @@
 .ccls-cache
 */.ccls-cache
 gem5-workbench/build/*
+gem5-workbench/nanogemm-*
+gem5-workbench/benchmarks/generated_sources
 gem5-workbench/benchmarks/gemmbench_*cpp
 gem5-workbench/benchmarks/Makefile.*
 gem5-workbench/benchmarks/make_*.log

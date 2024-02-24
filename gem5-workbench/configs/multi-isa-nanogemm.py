@@ -660,8 +660,8 @@ def main():
 
     sims_per_dataprocs = 32
 
-    dp_worker_count = max_workers//sims_per_dataprocs
-    sim_worker_count = max_workers - dp_worker_count
+    dp_worker_count = max(1,max_workers//sims_per_dataprocs)
+    sim_worker_count = max(1,max_workers - dp_worker_count)
 
     result_queues = [gem5Context().Queue() for i in range(dp_worker_count)]
 

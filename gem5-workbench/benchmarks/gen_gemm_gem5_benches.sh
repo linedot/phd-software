@@ -1,7 +1,8 @@
 #!/bin/bash
 
 BENCHMARKS_PATH=$(pwd)
-UARCH_BENCH_PATH=${BENCHMARKS_PATH}/../../uarch_bench
+ASMGEN_PATH=${BENCHMARKS_PATH}/../../asmgen
+ASMGEN_GEMM_PATH=${BENCHMARKS_PATH}/../../asmgen-gemm
 AARCH64_TOOLCHAIN_PATH=${BENCHMARKS_PATH}/../toolchains/aarch64
 RISCV64_TOOLCHAIN_PATH=${BENCHMARKS_PATH}/../toolchains/riscv64
 AARCH64_BINARIES_PATH=${BENCHMARKS_PATH}/../binaries/aarch64
@@ -31,9 +32,13 @@ AARCH64_GCC=$AARCH64_TOOLCHAIN_PATH/bin/aarch64-linux-gnu-g++
 RISCV64_GCC=$RISCV64_TOOLCHAIN_PATH/bin/riscv64-linux-gnu-g++
 [[ -f "$RISCV64_GCC" ]] || toolchain_missing_compiler "$RISCV64_GCC"
 
+GENSRC_PATH=$BENCHMARKS_PATH/generated_sources/
+
+mkdir -p $GENSRC_PATH
+
 # start with empty files
-makefile_sve=Makefile.sve
-makefile_rvv=Makefile.rvv
+makefile_sve=$GENSRC_PATH/Makefile.sve
+makefile_rvv=$GENSRC_PATH/Makefile.rvv
 echo "default: all" > $makefile_sve
 echo >> $makefile_sve
 echo "default: all" > $makefile_rvv
@@ -50,25 +55,26 @@ for mr in {1..8}; do
         bench_name=gemmbench_${mr}_${nr}_avecpreload_bvecdist1_boff
         sve_benchmarks+=("$bench_name")
 cat <<EOT >> $makefile_sve
-${bench_name}_sve.cpp: gemmbench_gem5.cpp.in
-	python3 ${UARCH_BENCH_PATH}/gemmerator.py \
+$GENSRC_PATH/${bench_name}_sve.cpp: gemmbench_gem5.cpp.in
+	python3 ${ASMGEN_GEMM_PATH}/gemmerator.py \
 	-T sve \
 	--nr $nr --mr $mr \
 	-V 32 \
-	-M l1 \
+	-M contiguous \
 	-t double \
 	--bvec-strat dist1_boff \
 	--avec-strat preload \
-	gemmbench_gem5.cpp.in > ${bench_name}_sve.cpp
+	gemmbench_gem5.cpp.in \
+    --output-filename $GENSRC_PATH/${bench_name}_sve.cpp
 
 EOT
 
 cat <<EOT >> $makefile_sve
-${AARCH64_BINARIES_PATH}/${bench_name}: ${bench_name}_sve.cpp
+${AARCH64_BINARIES_PATH}/${bench_name}: $GENSRC_PATH/${bench_name}_sve.cpp
 	${AARCH64_GCC} \
 	    -static \
 	    -march=armv8.2-a+sve -Ofast \
-	    -o ${AARCH64_BINARIES_PATH}/$bench_name ${bench_name}_sve.cpp \
+	    -o ${AARCH64_BINARIES_PATH}/$bench_name $GENSRC_PATH/${bench_name}_sve.cpp \
 	    -I ${GEM5_PATH}/include/ -L ${GEM5_PATH}/util/m5/build/arm64/out/ -lm5
 
 EOT
@@ -76,25 +82,26 @@ EOT
         rvv_benchmarks+=("$bench_name")
 
 cat <<EOT >> $makefile_rvv
-${bench_name}_rvv.cpp: gemmbench_gem5.cpp.in
-	python3 ${UARCH_BENCH_PATH}/gemmerator.py \
+$GENSRC_PATH/${bench_name}_rvv.cpp: gemmbench_gem5.cpp.in
+	python3 ${ASMGEN_GEMM_PATH}/gemmerator.py \
 	-T rvv \
 	--nr $nr --mr $mr \
 	-V 32 \
-	-M l1 \
+	-M contiguous \
 	-t double \
 	--bvec-strat fmavf \
 	--avec-strat preload \
-	gemmbench_gem5.cpp.in > ${bench_name}_rvv.cpp
+	gemmbench_gem5.cpp.in \
+    --output-filename $GENSRC_PATH/${bench_name}_rvv.cpp
 
 EOT
 
 cat <<EOT >> $makefile_rvv
-${RISCV64_BINARIES_PATH}/${bench_name}: ${bench_name}_rvv.cpp
+${RISCV64_BINARIES_PATH}/${bench_name}: $GENSRC_PATH/${bench_name}_rvv.cpp
 	${RISCV64_GCC} \
 	    -static \
 	    -march=rv64imafdcv_zicbop -Ofast \
-	    -o ${RISCV64_BINARIES_PATH}/$bench_name ${bench_name}_rvv.cpp \
+	    -o ${RISCV64_BINARIES_PATH}/$bench_name $GENSRC_PATH/${bench_name}_rvv.cpp \
 	    -I ${GEM5_PATH}/include/ -L ${GEM5_PATH}/util/m5/build/riscv/out/ -lm5
 
 EOT
@@ -117,7 +124,7 @@ for tgt in sve rvv; do
     bin_str="binaries="
     bvarname=${tgt}_benchmarks[@]
     for b in ${!bvarname}; do
-        src_str+="${b}_${tgt}.cpp "
+        src_str+="$GENSRC_PATH/${b}_${tgt}.cpp "
         bin_str+="${bpaths[$tgt]}/${b} "
     done
 
