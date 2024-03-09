@@ -122,7 +122,7 @@ def main():
 
     df = build_df(directory=args.stat_dir,
                   select_stats={},
-                  target_stats=[args.target_stat])
+                  extract_stats=[args.target_stat])
 
     # filter out analysis stats
     variable_params = [s for s in index_params if s not in args.analysis_stat and s not in reduce_params]
