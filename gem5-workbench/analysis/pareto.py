@@ -133,7 +133,8 @@ def main():
     variable_param_lists = {k : v for k,v in variable_param_lists.items() if 1 < len(v)}
 
 
-    slider_y_step = min(0.05,0.5/len(variable_param_lists))
+    vparam_count = max(len(variable_param_lists),1)
+    slider_y_step = min(0.05,0.5/vparam_count)
     
     grid_kws = {'width_ratios': (1.0,), 'wspace': 0.2}
     fig, ax = plt.subplots(1,1,gridspec_kw=grid_kws)
