@@ -437,7 +437,10 @@ def simrun(isa,combo):
             del d[k][must_len:]
     for k in statdict.keys():
        fix_stat_list(statdict, k, len(statdict[reference_key]))
+
     simrun.q.put(pd.DataFrame(statdict))
+
+    print("Exiting sim worker")
 
 def simrun_init(result_queues):
 
@@ -531,6 +534,8 @@ def process_results(basename:str,
                         complib='blosc:zstd')
         del stat_df
         gc.collect()
+
+    print("Exiting processing worker")
 
 
 def main():
