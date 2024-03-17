@@ -54,3 +54,40 @@ cd phd-software/gem5-workbench
 RISCV64_TOOLCHAIN=$(pwd)/toolchains/riscv64
 PATH=$RISCV64_TOOLCHAIN/bin:$PATH scons -C ../gem5/util/m5 riscv.CROSS_COMPILE=riscv64-linux-gnu- build/riscv/out/m5
 ```
+
+# NANOGEMM
+
+## Installing asmgen
+
+I recommend creating a venv and installing asmgen into it
+
+```
+cd gem5-workbench
+python -m venv --system-site-packages venvs/nanogemm
+. venvs/nanogemm/bin/activate
+python -m build ../asmgen -o build/python/
+pip install build/python/asmgen-0.1.0-py3-none-any.whl
+deactivate
+
+```
+
+## Building gemm benchmarks
+
+```
+cd gem5-workbench
+. venvs/nanogemm/bin/activate
+cd benchmarks
+./gen_gemm_gem5_benches.sh
+```
+
+## Running gem5 simulation
+
+One single configuration:
+
+```
+cd gem5-workbench
+PYTHONPATH=bine-configs build/ALL/gem5.opt --no-output-files configs/multi-isa-nanogemm.py --isa aarch64 --mr 2 --nr 4 --simd_lat 4 --simd_count 2 --simd_width 256 --decode_width 8 --commit_width 8 --fetch_buf_size 64 --assoc 16 --l1_size 64 --ld_count 2 --st_count 2 --simd_phreg_count 128  --rob_size 128 --iq_size 128 --split_bytes 500000000 --base_out_dir=$(pwd)/nanogemm-$(date "+%Y-%m-%d")
+
+```
+
+If you specify multiple values for parameters, the simulation script will run every possible combination of parameters
