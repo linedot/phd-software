@@ -3,11 +3,13 @@
 import argparse
 import pandas
 import itertools
+import math
+import numpy as np
 
 import sys
 MIN_PYTHON = (3, 9)
 if sys.version_info < MIN_PYTHON:
-    sys.exit("Python %s.%s or later is required.\n" % MIN_PYTHON)
+    sys.exit("Python %s.%s or simd_later is required.\n" % MIN_PYTHON)
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze gem5run of gemm benchmarks")
@@ -20,41 +22,60 @@ def main():
 
     # Now handled by the extract script
     #df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] + \
-    #        df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["nfu"]
+    #        df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
     #df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
     #data_size = 8 # double
-    #df["bytesRead"] = df["mr"]*df["kc"]*df["vlen"]/8 + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*data_size
+    #df["bytesRead"] = df["mr"]*df["kc"]*df["simd_width"]/8 + df["kc"]*df["nr"]*data_size + df["mr"]*df["nr"]*data_size
     #df["bytesWritten"] = df["mr"]*df["nr"]*data_size
+    
+
+    data_size = 8
+    mr_elem = df['mr']*df['simd_width']/(data_size*8)
+    # We take at least 1 bank
+    ca=np.maximum(np.floor((df['assoc']-1.0)/(1.0+df['nr']/mr_elem)),1).astype(int)
+
+    nl = df['l1_size']*1024/df['assoc']/64
+
+    print(nl)
+
+    #print(f"ca: {ca}")
+    # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
+    df['kc']=((ca*nl*64)/(mr_elem*data_size)).astype(int)
 
 
-    df_assoc4 = df[df["assoc"] == 4]
-    df_efficient = df_assoc4[df_assoc4["efficiency"] > 0.95]
+    #df = df[df["assoc"] == 4]
+    df_efficient = df[df["efficiency"] > 0.95]
     # Somehow the index gets messed up between these, so set it explicitly for both
-    for df in [df_assoc4,df_efficient]:
-        df.set_index(["mr","nr","lat","nfu","vlen","assoc","meas_idx"],inplace=True,drop=False)
-        df.reset_index(drop=True,inplace=True)
+    for tdf in [df,df_efficient]:
+        tdf.set_index(["mr","nr","simd_lat","simd_count","simd_width"],inplace=True,drop=False)
+        tdf.sort_index(inplace=True)
+        tdf.reset_index(drop=True,inplace=True)
 
-    nfu_list = [1,2,4]
-    vlen_list = [128,256,512,1024]
-    lat_list = [4,6,10]
+    #simd_count_list = [1,2,4]
+    #simd_width_list = [128,256,512,1024]
+    #simd_lat_list = [4,6,10]
+
+    simd_count_list = df['simd_count'].unique()
+    simd_width_list = df['simd_width'].unique()
+    simd_lat_list =   df['simd_lat'].unique()
 
     df_results = pandas.DataFrame()
 
-    combinations = list(itertools.product(lat_list,vlen_list,nfu_list))
+    combinations = list(itertools.product(simd_lat_list,simd_width_list,simd_count_list))
 
     results = []
-    for lat,vlen,nfu in combinations:
-        if 0 == len(df_assoc4[(df_assoc4["nfu"] == nfu) & (df_assoc4["lat"] == lat) & (df_assoc4["vlen"] == vlen)]):
+    for simd_lat,simd_width,simd_count in combinations:
+        if 0 == len(df[(df["simd_count"] == simd_count) & (df["simd_lat"] == simd_lat) & (df["simd_width"] == simd_width)]):
             continue
 
         result = {}
-        print(f"Combination ({nfu},{vlen},{lat})")
-        result[r"$(\NSIMD,\wSIMD,\lambdaSIMDfma)$"] = f"$({nfu},{vlen},{lat})$"
+        print(f"Combination ({simd_count},{simd_width},{simd_lat})")
+        result[r"$(\NSIMD,\wSIMD,\lambdaSIMDfma)$"] = f"$({simd_count},{simd_width},{simd_lat})$"
 
         df_good = df_efficient[ \
-                (df_efficient["nfu"] == nfu) & \
-                (df_efficient["lat"] == lat) & \
-                (df_efficient["vlen"] == vlen)]
+                (df_efficient["simd_count"] == simd_count) & \
+                (df_efficient["simd_lat"] == simd_lat) & \
+                (df_efficient["simd_width"] == simd_width)]
 
         if(0 != len(df_good)):
             df_good = df_good.groupby(["mr","nr"], group_keys=False).apply(lambda x: x.loc[x.efficiency.idxmax()])
@@ -62,10 +83,10 @@ def main():
         result["\\ngood"] = len(df_good)
 
         if(0 == len(df_good)):
-            df_good = df_assoc4[ \
-                (df_assoc4["nfu"] == nfu) & \
-                (df_assoc4["lat"] == lat) & \
-                (df_assoc4["vlen"] == vlen)]
+            df_good = df[ \
+                (df["simd_count"] == simd_count) & \
+                (df["simd_lat"] == simd_lat) & \
+                (df["simd_width"] == simd_width)]
 
         best_idx = df_good["efficiency"].idxmax()
         best = df_good.loc[best_idx]
@@ -89,7 +110,7 @@ def main():
     #maxfactor = 1.0/df_results["\\nbimipcrate"].min()
     #print(f"IPC/issue avg: {meanrate}; up to {maxfactor} more issued than IPC")
 
-    #print(df_results.to_latex(index=False,
+    #print(df_results.to_simd_latex(index=False,
     #                          escape=False,
     #                          float_format="%.3f"))
     df_results.set_index(r"$(\NSIMD,\wSIMD,\lambdaSIMDfma)$",inplace=True)
