@@ -83,9 +83,10 @@ def extract_target(select_stats  :dict[str,int],
     except Exception as exc:
         print(f"error occured: {exc}")
 
-    df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
-            df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
-    df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
+    if not 'efficiency' in df:
+        df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
+                df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
+        df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
 
     selector = " & ".join([f"{key} == {value}" for key,value in select_stats.items()])
     if selector:
