@@ -607,6 +607,10 @@ def main():
     parser.add_argument("--split_bytes", type=int,
                         metavar="split_bytes",
                         help='Write gathered stats to hdf5 file after internal struct reaches this size', default=4*2**30)
+    parser.add_argument("--sim_max_cores", type=int,
+                        metavar="sim_max_cores",
+                        help='Use at most this many cores for the simulation (default: os.cpu_count())',
+                        default=os.cpu_count())
     parser.add_argument("--stat_filename", type=str,
                         metavar="stat_filename",
                         help='Base name of the hdf5 file for stats, multiple files will be called stat_filename0.h5,stat_filename1.h5, etc...', default="statfile")
@@ -650,9 +654,28 @@ def main():
     print("filtering out invalid mr/nr combinations")
     combinations = [combo for combo in combinations if max_vregs > (combo[0]*combo[1]+combo[0]*2+1)]
     print(f"Filtered out {combination_count - len(combinations)} combinations")
+    combination_count = len(combinations)
+
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    mpi_size = comm.Get_size()
+    mpi_rank = comm.Get_rank()
+
+    base_out_dir = args.base_out_dir + f"rank{mpi_rank}_"
+
+    chunksize = combination_count//(mpi_size)
+    combo_start = chunksize*(mpi_rank)
+    if mpi_rank != mpi_size-1:
+        combo_end = chunksize*(mpi_rank+1)
+        combinations = combinations[combo_start:combo_end]
+        print(f"MPI rank {mpi_rank} will work on combinations [{combo_start}:{combo_end}]")
+    else:
+        combinations = combinations[combo_start:]
+        print(f"MPI rank {mpi_rank} will work on combinations [{combo_start}:]")
 
 
-    hw_cores = int(os.cpu_count())
+    hw_cores = int(args.sim_max_cores)
     print(f"System has {hw_cores} hardware cores")
     ram_per_worker = 200*2**20
     hw_max_ram_cores = int((0.50*ram_available)/ram_per_worker)
@@ -675,7 +698,7 @@ def main():
     end_event = gem5Context().Event()
     dp_processes = [gem5Context().Process(target=process_results,
                      args=(args.stat_filename+f"_dp{i}_",
-                      args.base_out_dir,
+                      base_out_dir,
                       args.split_bytes,
                       result_queues[i],
                       end_event)) for i in range(dp_worker_count)]
@@ -715,7 +738,7 @@ def main():
         exit(-1)
     signal.signal(signal.SIGINT, stop_processes_and_exit)
 
-    os.makedirs(args.base_out_dir,exist_ok=True)
+    os.makedirs(base_out_dir,exist_ok=True)
     try:
         for result in tqdm.tqdm(pool.imap_unordered(
                 functools.partial(
