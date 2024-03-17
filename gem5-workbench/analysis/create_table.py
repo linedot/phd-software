@@ -40,7 +40,20 @@ def main():
 
     #print(f"ca: {ca}")
     # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
-    df['kc']=((ca*nl*64)/(mr_elem*data_size)).astype(int)
+
+    kc=((ca*nl*64)/(mr_elem*data_size)).astype(int)
+
+    max_vregs = 32
+    vectors_in_mr = df['mr']
+    avec_count = 2*vectors_in_mr
+    b_regs = (max_vregs-vectors_in_mr*df['nr']-avec_count)
+    smallest_unroll = np.floor(np.lcm(b_regs,df['nr'])/df['nr'])
+    unroll_factor = smallest_unroll
+    unroll_factor[3>unroll_factor] = 4
+    unroll_factor[4 == unroll_factor] = 8
+    unroll_factor[6 == unroll_factor] = 12
+
+    df['kc'] = np.floor(kc/unroll_factor)*unroll_factor
 
 
     #df = df[df["assoc"] == 4]
