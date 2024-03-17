@@ -97,7 +97,7 @@ def extract_target(select_stats  :dict[str,int],
         else:
             raise RuntimeError(f"Invalid value: extract_stats=\"{extract_stats}\"")
     else:
-        return df[index_params+extract_stats]
+        return df[index_params+[s for s in extract_stats if not s in index_params]]
 
 
 
