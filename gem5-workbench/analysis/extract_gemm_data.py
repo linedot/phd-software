@@ -18,8 +18,8 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze gem5run of gemm benchmarks")
     parser.add_argument("--basedir", metavar="basedir", help='Base directory where simulation results are stored', required=True)
     parser.add_argument("--select", metavar="select", nargs='+', help='Select values, i.e "--select mr=2 nr=10 vlen=512"', default=[])
-    parser.add_argument("--extract", metavar="extract", nargs='+', help='extract these values, i.e "efficiency,numCycles"', default="all")
-    parser.add_argument("--inspect", metavar="inspect", nargs='+', help='inspect these values, i.e "efficiency,numCycles"', default="all")
+    parser.add_argument("--extract", metavar="extract", nargs='+', help='extract these values, i.e "efficiency,numCycles"', default=["all"])
+    parser.add_argument("--inspect", metavar="inspect", nargs='+', help='inspect these values, i.e "efficiency,numCycles"', default=[])
     parser.add_argument("--list-stats", help='list available stats', action='store_true', default=False)
     parser.add_argument("--output", metavar="output", help='File to store the output to, extension must be either .h5 (for HDF5) or .csv for (CSV)', required=True)
     
