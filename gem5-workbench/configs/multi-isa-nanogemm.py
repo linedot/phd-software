@@ -662,7 +662,7 @@ def main():
     mpi_size = comm.Get_size()
     mpi_rank = comm.Get_rank()
 
-    base_out_dir = args.base_out_dir + f"rank{mpi_rank}_"
+    base_out_dir = args.base_out_dir
 
     chunksize = combination_count//(mpi_size)
     combo_start = chunksize*(mpi_rank)
@@ -697,7 +697,7 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     end_event = gem5Context().Event()
     dp_processes = [gem5Context().Process(target=process_results,
-                     args=(args.stat_filename+f"_dp{i}_",
+                     args=(args.stat_filename+f"rank{mpi_rank}_"+f"dp{i}_",
                       base_out_dir,
                       args.split_bytes,
                       result_queues[i],
