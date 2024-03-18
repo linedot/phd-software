@@ -92,7 +92,6 @@ def pareto(df : pandas.DataFrame,
                                        for stat,vmax in astat_datapoint_dict.items()])
                 df_list.append(tdf.query(selector))
     pareto_df = pandas.concat(df_list)
-    print(pareto_df.to_string())
     return pareto_df
 
 def main():
@@ -211,6 +210,7 @@ def main():
             df_specific = df
 
 
+
         df_specific = df_specific.groupby(variable_params, group_keys=False).apply(lambda x: x.loc[x[args.target_stat].idxmax()])
         df_specific.reset_index(drop = True, inplace = True)
 
@@ -219,6 +219,16 @@ def main():
                analysis_stats=args.analysis_stat, 
                target_stat=args.target_stat, 
                target_thresholds=target_thresholds)
+
+        df_print = full_pareto_df[['rob_size','iq_size','simd_phreg_count','pareto_threshold','efficiency']]
+        print(df_print.style.hide(axis=0).to_latex(
+            environment="table*",
+            column_format="".join(['c' for c in range(df_print.columns.size)]),
+            position_float="centering",
+            hrules=True,
+            caption="Unfiltered pareto data",
+            label="tab:pareto_unfiltered") 
+            )
 
         update_threshold(val)
 
