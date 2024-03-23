@@ -34,14 +34,25 @@ def main():
     # We take at least 1 bank
     ca=np.maximum(np.floor((df['assoc']-1.0)/(1.0+df['nr']/mr_elem)),1).astype(int)
 
-    nl = df['l1_size']*1024/df['assoc']/64
+    print(f"ca: {ca}")
+
+    if cl_size in df:
+        cl_size = df['cl_size']
+    else:
+        cl_size = 64
+
+    nl = df['l1_size']*1024/df['assoc']/cl_size
+
+    print(f"nl: {nl}")
 
     print(nl)
 
     #print(f"ca: {ca}")
     # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
 
-    kc=((ca*nl*64)/(mr_elem*data_size)).astype(int)
+    kc=((ca*nl*cl_size).astype(int)/(mr_elem*data_size)).astype(int)
+
+    print(f"kc: {kc}")
 
     max_vregs = 32
     vectors_in_mr = df['mr']
@@ -53,7 +64,11 @@ def main():
     unroll_factor[4 == unroll_factor] = 8
     unroll_factor[6 == unroll_factor] = 12
 
-    df['kc'] = np.floor(kc/unroll_factor)*unroll_factor
+    print(f"unroll factor: {unroll_factor}")
+
+    df['kc'] = np.floor(kc//unroll_factor)*unroll_factor
+
+    print(f"new kc: {df['kc']}")
 
 
     #df = df[df["assoc"] == 4]
