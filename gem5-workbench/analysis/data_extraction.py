@@ -2,6 +2,7 @@
 import pandas
 import os
 import sys
+import numpy as np
 
 from typing import Union
 
@@ -87,6 +88,38 @@ def extract_target(select_stats  :dict[str,int],
         df["minCyclesPossible"] = (df["system.cpu.commitStats0.committedInstType::SimdFloatMultAcc"] +\
                 df["system.cpu.commitStats0.committedInstType::SimdFloatMult"])/df["simd_count"]
         df["efficiency"] = df["minCyclesPossible"]/df["system.cpu.numCycles"]
+
+    if not 'kc' in df:
+        data_size = 8
+        mr_elem = df['mr']*df['simd_width']/(data_size*8)
+        # We take at least 1 bank
+        ca=np.maximum(np.floor((df['assoc']-1.0)/(1.0+df['nr']/mr_elem)),1).astype(int)
+
+        if 'cl_size' in df:
+            cl_size = df['cl_size']
+        else:
+            cl_size = 64
+
+        nl = df['l1_size']*1024/df['assoc']/cl_size
+
+        #print(f"ca: {ca}")
+        # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
+
+        kc=((ca*nl*cl_size)/(mr_elem*data_size)).astype(int)
+
+        max_vregs = 32
+        vectors_in_mr = df['mr']
+        avec_count = 2*vectors_in_mr
+        b_regs = (max_vregs-vectors_in_mr*df['nr']-avec_count)
+        smallest_unroll = np.floor(np.lcm(b_regs,df['nr'])/df['nr'])
+        unroll_factor = smallest_unroll
+        unroll_factor[3>unroll_factor] = 4
+        unroll_factor[4 == unroll_factor] = 8
+        unroll_factor[6 == unroll_factor] = 12
+
+        df['unroll'] = unroll_factor
+        df['kc'] = np.floor(kc/unroll_factor)*unroll_factor
+        df['flops'] = df['simd_width']/data_size*2.0*(vectors_in_mr*df['nr']*df['unroll'])*df['kc']+3.0*df['nr']*vectors_in_mr
 
     selector = " & ".join([f"{key} == {value}" for key,value in select_stats.items()])
     if selector:
