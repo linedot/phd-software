@@ -109,7 +109,7 @@ def main():
         plt.rcParams['text.usetex'] = True
         plt.rcParams.update({'font.size': 20})
         #plt.margins(x=1.0)
-        fig = plt.figure(figsize=(8,4))
+        fig = plt.figure(figsize=(8,2.2))
         ax = sns.barplot(x=df_good_n2_vlen_l4.index, y="l1bw", data=df_good_n2_vlen_l4, color='black')
         ax.set_xticklabels(["{0},{1}".format(
             int(df_good_n2_vlen_l4.iloc[i]["mr"]),
@@ -134,13 +134,24 @@ def main():
 
     gmapdf = pandas.DataFrame(goodmaps)
 
-    for (lsimd, group) in gmapdf.groupby("simd_lat"):
-        fig, ax = plt.subplots(figsize=(8,4))
-        plotdf = group.pivot(index="simd_width", columns="simd_count", values="n_good")
-        sns.heatmap(plotdf.T, annot=True, ax=ax)
-        ax.set_xlabel("$w_{SIMD}$ [bit]")
-        ax.set_ylabel("$N_{SIMD}$")
-        fig.savefig(f"lsimd{lsimd}_good_heatmap.pdf",bbox_inches='tight')
+    max_good = gmapdf["n_good"].max()
+
+    for scale in [1.0,1.2,1.4]:
+        fig, axs = plt.subplots(figsize=(scale*9,scale*2.2),ncols=3,sharex=True,sharey=True)
+        cbar_ax  = fig.add_axes([1.01,.1,.03,.7])
+        for (lsimd, group),ax in zip(gmapdf.groupby("simd_lat"),axs.flat):
+            plotdf = group.pivot(index="simd_width", columns="simd_count", values="n_good")
+            sns.heatmap(plotdf.T, annot=True, ax=ax, vmin=0, vmax=max_good, cbar_ax=cbar_ax)
+            ax.set_xlabel(None)
+            ax.set_ylabel(None)
+            ax.set_title(f"$\lambda_\mathrm{{SIMD,FMA}}={lsimd}$")
+
+        fig.text(0.5, 0.03, '$w_\mathrm{SIMD}\mathrm{[bit]}$', ha='center')
+        fig.text(-0.01, 0.5, '$N_\mathrm{SIMD}$', va='center', rotation='vertical')
+        cbar_ax.set_yticks(np.arange(0,max_good+1,10))
+        cbar_ax.set_ylabel("$n_\mathrm{good}$")
+        fig.tight_layout()
+        fig.savefig(f"lsimdall_good_heatmap_s{scale}.pdf",bbox_inches='tight')
 
 if "__main__" == __name__:
     main()
