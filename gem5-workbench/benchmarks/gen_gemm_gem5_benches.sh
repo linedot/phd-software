@@ -60,7 +60,7 @@ $GENSRC_PATH/${bench_name}_sve.cpp: gemmbench_gem5.cpp.in
 	-T sve \
 	--nr $nr --mr $mr \
 	-V 32 \
-	-M contiguous \
+	-M l1 \
 	-t double \
 	--bvec-strat dist1_boff \
 	--avec-strat preload \
@@ -87,7 +87,7 @@ $GENSRC_PATH/${bench_name}_rvv.cpp: gemmbench_gem5.cpp.in
 	-T rvv \
 	--nr $nr --mr $mr \
 	-V 32 \
-	-M contiguous \
+	-M l1 \
 	-t double \
 	--bvec-strat fmavf \
 	--avec-strat preload \
