@@ -52,6 +52,7 @@ def prepare_statdict(statmap):
     statdict["ld_count"] = []
     statdict["st_count"] = []
     statdict["l1_size"] = []
+    statdict["cl_size"] = []
     statdict["iq_size"] = []
     statdict["rob_size"] = []
     statdict["assoc"] = []
@@ -240,7 +241,7 @@ def setup_cpu(isa:str,
 
     return cpu
 
-def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
+def setup_system(isa:str, mr:int, nr:int, simd_width:int, cl_size:int, cpu):
     import m5
     from m5.objects import System, SrcClockDomain, VoltageDomain, AddrRange, SystemXBar, MemCtrl, DDR4_2400_8x8, SEWorkload, Process
 
@@ -275,6 +276,8 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cpu):
 
     system.cpu.icache.mem_side = system.membus.cpu_side_ports
     system.cpu.dcache.mem_side = system.membus.cpu_side_ports
+
+    system.cache_line_size = cl_size
 
     system.cpu.createInterruptController()
 
@@ -354,7 +357,7 @@ def simrun(isa,combo):
     resource.setrlimit(resource.RLIMIT_AS, (softlimit,hardlimit))
 
 
-    mr,nr,simd_lat,simd_count,simd_width,simd_phreg_count,ld_count,st_count,l1_size,iq_size,rob_size,assoc,decode_width,commit_width,fetch_buf_size = combo
+    mr,nr,simd_lat,simd_count,simd_width,simd_phreg_count,ld_count,st_count,l1_size,cl_size,iq_size,rob_size,assoc,decode_width,commit_width,fetch_buf_size = combo
     cpu = setup_cpu(isa=isa,
                     simd_lat=simd_lat, simd_count=simd_count, 
                     simd_width=simd_width, simd_phreg_count=simd_phreg_count,
@@ -365,7 +368,7 @@ def simrun(isa,combo):
                     decode_width=decode_width,
                     commit_width=commit_width,
                     fetch_buf_size=fetch_buf_size)
-    system = setup_system(isa=isa, mr=mr, nr=nr, simd_width=simd_width, cpu=cpu)
+    system = setup_system(isa=isa, mr=mr, nr=nr, simd_width=simd_width, cl_size=cl_size, cpu=cpu)
 
     #m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}_l1as{assoc}_st{st_count}_ld{ld_count}_l1d{l1_size}_phr{simd_phreg_count}_rob{rob_size}")
     #print(f"gem5 output directory: {m5.options.outdir}")
@@ -409,6 +412,7 @@ def simrun(isa,combo):
             statdict["ld_count"].append(ld_count)
             statdict["st_count"].append(st_count)
             statdict["l1_size"].append(l1_size)
+            statdict["cl_size"].append(cl_size)
             statdict["iq_size"].append(iq_size)
             statdict["rob_size"].append(rob_size)
             statdict["assoc"].append(assoc)
@@ -586,6 +590,9 @@ def main():
     parser.add_argument("--assoc", nargs='+', type=int,
                         metavar="assoc",
                         help='L1D cache associativity', required=True)
+    parser.add_argument("--cl_size", nargs='+', type=int,
+                        metavar="cl_size",
+                        help='Cache line size in Byte', required=True)
     parser.add_argument("--l1_size", nargs='+', type=int,
                         metavar="l1_size",
                         help='L1D cache size in KiByte', required=True)
@@ -636,6 +643,7 @@ def main():
                    args.simd_phreg_count,
                    args.ld_count,args.st_count,
                    args.l1_size,
+                   args.cl_size,
                    args.iq_size,
                    args.rob_size,
                    args.assoc,
