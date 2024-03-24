@@ -36,7 +36,7 @@ def main():
 
     print(f"ca: {ca}")
 
-    if cl_size in df:
+    if 'cl_size' in df:
         cl_size = df['cl_size']
     else:
         cl_size = 64
