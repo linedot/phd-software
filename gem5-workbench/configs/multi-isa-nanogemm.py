@@ -325,7 +325,7 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cl_size:int, cpu):
     # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
     kc=int((ca*nl*cl)/(mr_elem*data_size))
     print(f"assoc: {w_l1}, cl:{cl}, nl:{nl}, mr_elem: {mr_elem}, nr: {nr} ===> kc: {kc}")
-    iterations=int(kc)//unroll_factor
+    iterations=max(2,int(kc)//unroll_factor)
     print(f"unroll: {unroll_factor} ===> iterations: {iterations} ===> kc: {iterations*unroll_factor}")
 
     process = Process(output="/dev/null",errout="/dev/null")
