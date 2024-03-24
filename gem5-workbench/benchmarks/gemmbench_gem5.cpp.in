@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -33,11 +34,14 @@ int main(int argc, char* argv[])
     std::vector<$DT> bdata;
     std::vector<$DT> cdata;
 
-    $DT alpha;
-    $DT beta;
+    //$DT alpha;
+    //$DT beta;
 
-    $DT *alpha_ptr = &alpha;
-    $DT *beta_ptr = &beta;
+    volatile $DT alpha_data = 1.7;
+    volatile $DT beta_data = 3.1;
+
+    volatile $DT *alpha = &alpha_data;
+    volatile $DT *beta = &beta_data;
 
     constexpr auto mu = mem_use::$MEM;
     switch(mu)
@@ -56,6 +60,10 @@ int main(int argc, char* argv[])
         cdata.resize(get_simd_size()/sizeof($DT)*$VECINMR*$NR);
         break;
     }
+
+    std::iota(adata.begin(), adata.end(), -50);
+    std::iota(bdata.begin(), bdata.end(), 40);
+    std::iota(cdata.begin(), cdata.end(), 1000);
     
     $DT * a = adata.data();
     $DT * b = bdata.data();
