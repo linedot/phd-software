@@ -41,6 +41,29 @@ reduce_params = [
         "run"
         ]
 
+def reduce_to_dominant(datapoints):
+    reduced = []
+    # dp1 dominates dp2 if given i,j in range(len(dp1))
+    # dp1[i] <= dp2[i] and dp1[j] < dp2[j] for at least 1 j != i
+    for dp1 in datapoints:
+        skip = False
+        for dp2 in datapoints:
+            candidate = True
+            for i in range(len(dp1)):
+                candidate = candidate and (dp1[i] >= dp2[i])
+            if candidate:
+                for i in range(len(dp1)):
+                    if dp1[i] > dp2[i]:
+                        skip = True
+
+        if not skip:
+            reduced.append(dp1)
+        else:
+            print(f"throwing out {','.join([str(v) for v in dp1])}")
+    return reduced
+
+
+
 def pareto(df : pandas.DataFrame,
            analysis_stats : list[str],
            target_stat : str,
@@ -55,6 +78,8 @@ def pareto(df : pandas.DataFrame,
         if tdf.empty:
             continue
         tdf["pareto_threshold"] = th
+
+        th_pareto_datapoints = []
 
         astat_max_dict = {astat: tdf[astat].max()
                           for astat in analysis_stats}
@@ -86,11 +111,16 @@ def pareto(df : pandas.DataFrame,
                 astat_datapoint_dict[astat] = astat_dp_val
             datapoint = tuple(astat_datapoint_dict[astat] for astat in analysis_stats)
             #print(f"pareto datapoint {analysis_stats} = {datapoint}")
-            if datapoint not in pareto_datapoints:
-                pareto_datapoints.append(datapoint)
-                selector = " & ".join([f"{stat} == {vmax}"
-                                       for stat,vmax in astat_datapoint_dict.items()])
-                df_list.append(tdf.query(selector))
+            if datapoint not in th_pareto_datapoints:
+                th_pareto_datapoints.append(datapoint)
+
+        th_pareto_datapoints = reduce_to_dominant(th_pareto_datapoints)
+        for datapoint in th_pareto_datapoints:
+            selector = " & ".join([f"{stat} == {val}"
+                                   for stat,val in zip(analysis_stats,datapoint)])
+            df_list.append(tdf.query(selector))
+        pareto_datapoints.extend(th_pareto_datapoints)
+
     pareto_df = pandas.concat(df_list)
     return pareto_df
 
