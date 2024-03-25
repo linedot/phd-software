@@ -444,22 +444,23 @@ def simrun(isa,combo):
 
     simrun.q.put(pd.DataFrame(statdict))
 
-    print("Exiting sim worker")
-
 def simrun_init(result_queues):
 
     from gem5.utils.multiprocessing.context import gem5Context
+
+    process_name = gem5Context().current_process().name
     
-    queue_id = int(gem5Context().current_process().name.split('-')[1])%len(result_queues)
+    queue_id = int(process_name.split('-')[1])%len(result_queues)
     simrun.q = result_queues[queue_id]
 
 
 def process_results(basename:str,
                     out_dir:str,
                     split_bytes:int,
-                    queue,
+                    result_queue,
                     end_event):
     import gc
+    from queue import Empty
 
     stat_df=pd.DataFrame()
     
@@ -468,8 +469,11 @@ def process_results(basename:str,
     df_list = []
     df_merge_count = 100
     out_file_count = 0
-    while not end_event.is_set() or not queue.empty():
-        result = queue.get()
+    while not end_event.is_set() or not result_queue.empty():
+        try:
+            result = result_queue.get(False)
+        except Empty:
+            continue
 
         if result.empty:
             continue
@@ -731,6 +735,8 @@ def main():
         m5.options.stderr_file="/dev/null"
         m5.options.stdout_file="/dev/null"
 
+    print(f"Starting sim worker pool with {sim_worker_count} workers")
+
     pool = gem5mp.Pool(processes=sim_worker_count,
                        maxtasksperchild=1,
                        initializer=simrun_init,
@@ -766,21 +772,20 @@ def main():
     except KeyboardInterrupt:
         print("Keyboard interrupt received, terminating pool")
         pool.terminate()
+        # All sim workers must finish before end_event is set
+        pool.join()
         print("Setting end_event")
         end_event.set()
-        for q in result_queues:
-            q.put(pd.DataFrame())
         for p in dp_processes:
             p.terminate()
     else:
         pool.close()
+        # All sim workers must finish before end_event is set
+        pool.join()
         print("Setting end_event")
         end_event.set()
-        for q in result_queues:
-            q.put(pd.DataFrame())
         for p in dp_processes:
             p.join()
-    pool.join()
 
 
 if __name__ == "__main__":
