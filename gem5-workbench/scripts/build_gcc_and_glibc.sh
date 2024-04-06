@@ -211,6 +211,11 @@ if [ ${#patches[@]} -ne 0 ]; then
     logfile="${build_dir}/gcc-patching.log"
     echo "Applying GCC patches. Log: ${logfile}"
     for patch in "${patches[@]}"; do
+        echo "Checking if patch ${patch} was already applied to gcc-${version_gcc}"
+        if patch -d gcc-${version_gcc} -R -p1 -s -f --dry-run < $patch; then
+            echo "Skipping ${patch} - already applied"
+            continue
+        fi
         echo "Applying patch ${patch} to gcc-${version_gcc}"
         patch -d gcc-${version_gcc} -p1 < $patch > $logfile 2>&1
         if [ 0 -ne $? ]; then
