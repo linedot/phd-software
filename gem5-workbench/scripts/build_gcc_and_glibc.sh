@@ -410,7 +410,7 @@ export PATH="${out_dir}/${arch}-linux-gnu/bin/:$PATH"
                                     --libdir=/usr/lib \
                                     --libexecdir=/usr/lib \
                                     --with-headers=${sysroot}/include \
-                                    --enable-kernel=4.19.288 \
+                                    --enable-kernel=4.19.311 \
                                     --enable-add-ons \
                                     --enable-bind-now \
                                     --disable-profile \
@@ -471,6 +471,9 @@ export CXX="g++"
                                 --disable-werror \
                                 --enable-shared \
                                 --enable-threads=posix \
+                                --enable-libsanitizer \
+                                --enable-libvtv \
+                                --enable-libitm \
                                 --enable-__cxa_atexit \
                                 --enable-clocale=gnu \
                                 --enable-gnu-unique-object \
@@ -503,6 +506,18 @@ if [ 0 -ne $? ]; then
     echo "Failed to install stage 2 (final) GCC"
     exit -1
 fi
+# Install the libs
+for lib in libatomic \
+         libgfortran \
+         libgomp \
+         libitm \
+         libquadmath \
+         libsanitizer/{a,l,ub,t}san \
+         libstdc++-v3/src \
+         libvtv; do
+    make -C ${arch}-linux-gnu/$lib install > $logfile 2>&1
+done
+
 cd ..
 
 
