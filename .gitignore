@@ -12,6 +12,9 @@ gem5-workbench/binaries/*
 gem5-workbench/toolchains/*
 gem5-workbench/slurm*out
 gem5-workbench/gem5run*
+gem5-workbench/*.pdf
+gem5-workbench/*.h5
+gem5-workbench/venvs
 *.build.log
 *.swp
 */*.pyc
