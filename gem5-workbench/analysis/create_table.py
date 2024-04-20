@@ -14,8 +14,6 @@ if sys.version_info < MIN_PYTHON:
 def main():
     parser = argparse.ArgumentParser(description="Analyze gem5run of gemm benchmarks")
     parser.add_argument("--hdf5file", metavar="hdf5file", help='hdf5file to store the DataFrame to', required=True)
-    parser.add_argument("--simd_phreg_count", type=int, help='simd_phreg_count the simulation was run with', required=True)
-    parser.add_argument("--iq_size", type=int, help='iq_size the simulation was run with', required=True)
     
     args = parser.parse_args()
 
@@ -125,9 +123,9 @@ def main():
         result[r"$(m_r,n_r,k_c)$"] = f"$({int(best['mr'])},{int(best['nr'])},{int(best['kc'])})$"
         result[r"$\dt$ [cycle]"] = int(best["system.cpu.numCycles"])
         result[r"$\nrarchmin$"] = int(best["mr"]*best["nr"]+1+2*best["mr"])
-        result[r"$\nrphysvmax$"] = int(args.simd_phreg_count-(1000-best["system.cpu.rename.max1000MinusVecFreeEntries"]))
+        result[r"$\nrphysvmax$"] = int(best["simd_phreg_count"]-(1000-best["system.cpu.rename.max1000MinusVecFreeEntries"]))
         result[r"$\nrobmax$"] = int(best["system.cpu.rob.maxNumInstsInROB"])
-        result[r"$\nreservmax$"] = int(args.iq_size - best["system.cpu.numFreeEntriesDist::min_value"])
+        result[r"$\nreservmax$"] = int(best["iq_size"] - best["system.cpu.numFreeEntriesDist::min_value"])
         #result[r"$\nbissuemax$"] = best["system.cpu.numIssuedDist::max_value"]
         result[r"$\IPC$"] = f"{best['system.cpu.ipc']:.1f}"
         #result[r"$\nbimipcrate$"] = best["system.cpu.ipc"]/best["system.cpu.numIssuedDist::max_value"]
