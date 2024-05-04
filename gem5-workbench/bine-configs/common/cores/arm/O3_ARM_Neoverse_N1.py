@@ -243,4 +243,4 @@ class O3_ARM_Neoverse_N1(BaseO3CPU, ArmCPU):
 
 
 class O3_ARM_Neoverse_N1_but_RISCV(BaseO3CPU, RiscvCPU):
-    mmu = RiscvMMU
+    mmu = RiscvMMU()
