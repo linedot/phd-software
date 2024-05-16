@@ -202,7 +202,7 @@ def setup_cpu(isa:str,
         cpu = O3_ARM_Neoverse_N1(isa=cpu_isa)
     elif "riscv64" == isa:
         requires(isa_required=ISA.RISCV)
-        cpu_isa = RiscvISA(vlen=simd_width)
+        cpu_isa = RiscvISA(enable_rvv=True,vlen=simd_width)
         cpu = O3_ARM_Neoverse_N1_but_RISCV(isa=cpu_isa)
     else:
         raise RuntimeError(f"Unsupported ISA: {isa}")
@@ -231,19 +231,19 @@ def setup_cpu(isa:str,
             elif ('MemRead' == str(op.opClass)):
                 fu.count = ld_count
 
-    cpu.icache = O3_ARM_Neoverse_N1_ICache()
-    cpu.dcache = O3_ARM_Neoverse_N1_DCache()
-    cpu.dcache.assoc = assoc
-    cpu.dcache.size = f"{l1_size}kB"
+    #cpu.icache = O3_ARM_Neoverse_N1_ICache()
+    #cpu.dcache = O3_ARM_Neoverse_N1_DCache()
+    #cpu.dcache.assoc = assoc
+    #cpu.dcache.size = f"{l1_size}kB"
 
-    cpu.icache.cpu_side = cpu.icache_port
-    cpu.dcache.cpu_side = cpu.dcache_port
+    #cpu.icache.cpu_side = cpu.icache_port
+    #cpu.dcache.cpu_side = cpu.dcache_port
 
     return cpu
 
 def setup_system(isa:str, mr:int, nr:int, simd_width:int, cl_size:int, cpu):
     import m5
-    from m5.objects import System, SrcClockDomain, VoltageDomain, AddrRange, SystemXBar, MemCtrl, DDR4_2400_8x8, SEWorkload, Process
+    from m5.objects import System, SrcClockDomain, VoltageDomain, AddrRange, SystemXBar, MemCtrl, DDR4_2400_8x8, LPDDR5_6400_1x16_BG_BL32, SEWorkload, Process
 
     system = System()
 
@@ -267,7 +267,8 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cl_size:int, cpu):
     #system.cpu.createInterruptController()
 
     system.mem_ctrl = MemCtrl()
-    system.mem_ctrl.dram = DDR4_2400_8x8(device_size="256MiB")
+    #system.mem_ctrl.dram = DDR4_2400_8x8(device_size="256MiB")
+    system.mem_ctrl.dram = LPDDR5_6400_1x16_BG_BL32(device_size="256MiB")
     system.mem_ctrl.dram.range = system.mem_ranges[0]
     system.mem_ctrl.port = system.membus.mem_side_ports
 
@@ -335,11 +336,164 @@ def setup_system(isa:str, mr:int, nr:int, simd_width:int, cl_size:int, cpu):
 
     return system
 
+from gem5.components.cachehierarchies.abstract_cache_hierarchy import AbstractCacheHierarchy
+from gem5.components.memory.abstract_memory_system import AbstractMemorySystem
+from gem5.components.processors.abstract_processor import AbstractProcessor
+from gem5.components.boards.abstract_system_board import AbstractSystemBoard
+from gem5.components.boards.se_binary_workload import SEBinaryWorkload
+from gem5.utils.override import overrides
+from m5.objects import AddrRange, IOXBar, Port
+from typing import List
+
+class SEBoard(AbstractSystemBoard, SEBinaryWorkload):
+    def __init__(
+        self,
+        processor: AbstractProcessor,
+        memory: AbstractMemorySystem,
+        cache_hierarchy: AbstractCacheHierarchy,
+        clk_freq: str,
+    ) -> None:
+        super().__init__(
+            clk_freq=clk_freq,
+            processor=processor,
+            memory=memory,
+            cache_hierarchy=cache_hierarchy,
+        )
+
+    @overrides(AbstractSystemBoard)
+    def _setup_board(self) -> None:
+        pass
+
+    @overrides(AbstractSystemBoard)
+    def has_io_bus(self) -> bool:
+        return False
+
+    @overrides(AbstractSystemBoard)
+    def get_io_bus(self) -> IOXBar:
+        raise NotImplementedError(
+            "SEBoard does not have an IO Bus. "
+            "Use `has_io_bus()` to check this."
+        )
+
+    @overrides(AbstractSystemBoard)
+    def has_dma_ports(self) -> bool:
+        return False
+
+    @overrides(AbstractSystemBoard)
+    def get_dma_ports(self) -> List[Port]:
+        raise NotImplementedError(
+            "SEBoard does not have DMA Ports. "
+            "Use `has_dma_ports()` to check this."
+        )
+
+    @overrides(AbstractSystemBoard)
+    def has_coherent_io(self) -> bool:
+        return False
+
+    @overrides(AbstractSystemBoard)
+    def get_mem_side_coherent_io_port(self) -> Port:
+        raise NotImplementedError(
+            "SEBoard does not have any I/O ports. Use has_coherent_io to "
+            "check this."
+        )
+
+    @overrides(AbstractSystemBoard)
+    def _setup_memory_ranges(self) -> None:
+        memory = self.get_memory()
+        self.mem_ranges = [AddrRange(memory.get_size())]
+        memory.set_memory_range(self.mem_ranges)
+
+def setup_board(isa:str, mr:int, nr:int, simd_width:int,
+                cl_size:int, l1d_size:int, l1d_assoc:int,
+                cpu):
+
+    from m5.defines import buildEnv
+    print(buildEnv['PROTOCOL'])
+    import m5
+    from m5.objects import AddrRange
+    from gem5.resources.resource import BinaryResource
+    from gem5.components.boards.riscv_board import RiscvBoard
+    from gem5.components.processors.base_cpu_processor import BaseCPUProcessor
+    from gem5.components.processors.base_cpu_core import BaseCPUCore
+    from gem5.components.memory.single_channel import SingleChannelDDR4_2400
+    from gem5.components.cachehierarchies.chi.private_l1_cache_hierarchy\
+            import PrivateL1CacheHierarchy
+    from gem5.isas import ISA
+
+
+    thispath = os.path.dirname(os.path.realpath(__file__))
+    bin_name = ""
+
+    cache_hierarchy = PrivateL1CacheHierarchy(
+            size=f"{l1d_size}KiB",
+            assoc=l1d_assoc,
+            )
+    memory = SingleChannelDDR4_2400("256MiB")
+    if "riscv64" == isa:
+        core = BaseCPUCore(core = cpu, isa=ISA.RISCV)
+        bin_name = f"gemmbench_{mr}_{nr}_avecpreload_bvecfmavf"
+    elif "aarch64" == isa:
+        core = BaseCPUCore(core = cpu, isa=ISA.ARM)
+        bin_name = f"gemmbench_{mr}_{nr}_avecpreload_bvecdist1_boff"
+    else:
+        raise RuntimeError("Unknown isa {isa}")
+
+    processor = BaseCPUProcessor(cores = [core])
+
+    board = SEBoard(clk_freq='1GHz',
+                       processor=processor,
+                       memory=memory,
+                       cache_hierarchy=cache_hierarchy)
+
+    board.cache_line_size = cl_size
+
+    binary = os.path.join(
+        thispath,
+        "../",
+        f"binaries/{isa}/{bin_name}",
+    )
+
+
+    # from uarch_bench/gemmerator.py
+    max_vregs = 32
+    vectors_in_mr = mr
+    avec_count = 2*vectors_in_mr
+    b_regs = (max_vregs-vectors_in_mr*nr-avec_count)
+    smallest_unroll = lcm(b_regs,nr)//nr
+    unroll_factor = smallest_unroll
+    if 3 > unroll_factor:
+        unroll_factor = 4
+    if 4 == unroll_factor:
+        unroll_factor = 8
+    if 6 == unroll_factor:
+        unroll_factor = 12
+    w_l1 = l1d_assoc
+    cl   = 64#system.cache_line_size
+    nl   = l1d_size/w_l1/cl
+    # NOTE: DOUBLE_SPECIFIC!
+    data_size = 8
+    mr_elem = mr*simd_width/(data_size*8)
+    # We take at least 1 bank
+    ca=max(1,int(math.floor((w_l1-1.0)/(1.0+nr/mr_elem))))
+
+    print(f"ca: {ca}")
+    # Equation 4 from "Analytical modeling is enough for High-Performance BLIS"
+    kc=int((ca*nl*cl)/(mr_elem*data_size))
+    print(f"assoc: {w_l1}, cl:{cl}, nl:{nl}, mr_elem: {mr_elem}, nr: {nr} ===> kc: {kc}")
+    iterations=max(2,int(kc)//unroll_factor)
+    print(f"unroll: {unroll_factor} ===> iterations: {iterations} ===> kc: {iterations*unroll_factor}")
+
+    bin_res = BinaryResource(local_path=binary)
+    board.set_se_binary_workload(bin_res,arguments=[f"{iterations}"])
+
+    return board
 
 
 def simrun(isa,combo):
     import m5
     from m5.objects import Root
+    from gem5.simulate.simulator import Simulator
+    from gem5.simulate.exit_event import ExitEvent
     import resource
 
     # Should be inherited from parent process, but isn't
@@ -368,7 +522,12 @@ def simrun(isa,combo):
                     decode_width=decode_width,
                     commit_width=commit_width,
                     fetch_buf_size=fetch_buf_size)
-    system = setup_system(isa=isa, mr=mr, nr=nr, simd_width=simd_width, cl_size=cl_size, cpu=cpu)
+    #system = setup_system(isa=isa, mr=mr, nr=nr, simd_width=simd_width, cl_size=cl_size, cpu=cpu)
+    board = setup_board(isa=isa, mr=mr, nr=nr, simd_width=simd_width,
+                        cl_size=cl_size,
+                        l1d_size=l1_size,
+                        l1d_assoc=assoc,
+                        cpu=cpu)
 
     #m5.options.outdir=os.path.join(base_out_dir,f"gemm_m5_M{mr}_N{nr}_lat{simd_lat}_vl{simd_width}_nfu{simd_count}_dw{decode_width}_cw{commit_width}_fbs{fetch_buf_size}_l1as{assoc}_st{st_count}_ld{ld_count}_l1d{l1_size}_phr{simd_phreg_count}_rob{rob_size}")
     #print(f"gem5 output directory: {m5.options.outdir}")
@@ -379,58 +538,76 @@ def simrun(isa,combo):
     #print(f"created output dir")
     #m5.core.setOutputDir(m5.options.outdir)
 
-    root = Root(full_system=False, system=system)
-    m5.instantiate()
+    #root = Root(full_system=False, system=system)
+    #m5.instantiate()
 
-    statgroups = root.getStatGroups()
-    statmap = {}
-    build_stat_tree(statmap, name="", groups=statgroups)
-
-    stat_df = pd.DataFrame(columns=[name for name in statmap.keys()])
-    stat_df.reset_index(drop=True,inplace=True)
-    statdict = prepare_statdict(statmap)
-
+    def handle_workbegin():
+        print("workbegin event detected, resetting statistics")
+        m5.stats.reset()
 
     run = 0
-    noexit=True
-    print("starting workload loop")
-    while noexit:
-        exit_event = m5.simulate()
-        if "workbegin" == exit_event.getCause():
-            print("workbegin event detected, resetting statistics")
-            m5.stats.reset()
-        elif "workend" == exit_event.getCause():
-            print("workend event detected, dumping statistics")
-            #m5.stats.dump()
-            append_stats(statmap,statdict)
-            statdict["mr"].append(mr)
-            statdict["nr"].append(nr)
-            statdict["simd_lat"].append(simd_lat)
-            statdict["simd_count"].append(simd_count)
-            statdict["simd_width"].append(simd_width)
-            statdict["simd_phreg_count"].append(simd_phreg_count)
-            statdict["ld_count"].append(ld_count)
-            statdict["st_count"].append(st_count)
-            statdict["l1_size"].append(l1_size)
-            statdict["cl_size"].append(cl_size)
-            statdict["iq_size"].append(iq_size)
-            statdict["rob_size"].append(rob_size)
-            statdict["assoc"].append(assoc)
-            statdict["decode_width"].append(decode_width)
-            statdict["commit_width"].append(commit_width)
-            statdict["fetch_buf_size"].append(fetch_buf_size)
-            statdict["run"].append(run)
-            run = run+1
-            cycle_value = statdict["system.cpu.numCycles"][run-1]
-            print(f"Cycles: {cycle_value}")
-        else:
-            print("exit event neither workbegin nor workend, ending simulation")
-            noexit=False
+    statdict = {}
+    statmap = {}
 
-    print("Exiting @ tick %i because %s" % (m5.curTick(), exit_event.getCause()))
+    def handle_workend():
+        print("workend event detected, dumping statistics")
+        #m5.stats.dump()
+        nonlocal run
+        nonlocal statdict
+        nonlocal statmap
+        if 0 == run:
+            root = handle_workend.simulator._root
+
+            statgroups = root.getStatGroups()
+            statmap = {}
+            build_stat_tree(statmap, name="", groups=statgroups)
+            statdict = prepare_statdict(statmap)
+        append_stats(statmap,statdict)
+        statdict["mr"].append(mr)
+        statdict["nr"].append(nr)
+        statdict["simd_lat"].append(simd_lat)
+        statdict["simd_count"].append(simd_count)
+        statdict["simd_width"].append(simd_width)
+        statdict["simd_phreg_count"].append(simd_phreg_count)
+        statdict["ld_count"].append(ld_count)
+        statdict["st_count"].append(st_count)
+        statdict["l1_size"].append(l1_size)
+        statdict["cl_size"].append(cl_size)
+        statdict["iq_size"].append(iq_size)
+        statdict["rob_size"].append(rob_size)
+        statdict["assoc"].append(assoc)
+        statdict["decode_width"].append(decode_width)
+        statdict["commit_width"].append(commit_width)
+        statdict["fetch_buf_size"].append(fetch_buf_size)
+        statdict["run"].append(run)
+        run = run+1
+        cycle_value = statdict["board.processor.cores.core.numCycles"][run-1]
+        print(f"Cycles: {cycle_value}")
+
+
+    print("Creating simulator")
+    simulator = Simulator(
+            board=board,
+            full_system=False,
+            on_exit_event={
+                ExitEvent.WORKBEGIN: handle_workbegin,
+                ExitEvent.WORKEND: handle_workend,
+                }
+            )
+
+    print("Assigning simulator to function")
+    handle_workend.simulator = simulator
+
+    noexit=True
+    print("starting simulator")
+
+    simulator.run()
 
 
     reference_key = "system.cpu.numCycles"
+    for key in statdict.keys():
+        if "numCycles" in key:
+            reference_key = key
     def fix_stat_list(d : dict, k : str, must_len : int):
         v = d[k]
         vlen = len(v)
@@ -622,6 +799,9 @@ def main():
                         metavar="sim_max_cores",
                         help='Use at most this many cores for the simulation (default: os.cpu_count())',
                         default=os.cpu_count())
+    parser.add_argument("--single_process", action=argparse.BooleanOptionalAction,
+                        metavar="single_process",
+                        help='Do not start multiple processes, instead process sequentially')
     parser.add_argument("--stat_filename", type=str,
                         metavar="stat_filename",
                         help='Base name of the hdf5 file for stats, multiple files will be called stat_filename0.h5,stat_filename1.h5, etc...', default="statfile")
@@ -687,6 +867,7 @@ def main():
         print(f"MPI rank {mpi_rank} will work on combinations [{combo_start}:]")
 
 
+
     hw_cores = int(args.sim_max_cores)
     print(f"System has {hw_cores} hardware cores")
     ram_per_worker = 200*2**20
@@ -700,92 +881,114 @@ def main():
 
     sims_per_dataprocs = 32
 
-    dp_worker_count = max(1,max_workers//sims_per_dataprocs)
-    sim_worker_count = max(1,max_workers - dp_worker_count)
-
-    result_queues = [gem5Context().Queue() for i in range(dp_worker_count)]
-
-    # Ignore signals in the pool
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    end_event = gem5Context().Event()
-    dp_processes = [gem5Context().Process(target=process_results,
-                     args=(args.stat_filename+f"rank{mpi_rank}_"+f"dp{i}_",
-                      base_out_dir,
-                      args.split_bytes,
-                      result_queues[i],
-                      end_event)) for i in range(dp_worker_count)]
-
-    for p in dp_processes:
-        p.start()
-
-    # Suppress file creation
-    m5.options.outdir="/dev/null"
-    m5.options.no_output_files=True
-    m5.options.dump_config=False
-    m5.options.json_config=False
-    m5.options.dot_config=False
-    m5.options.dot_dvfs_config=False
-    m5.core.setOutputDir("/dev/null")
-    if args.quiet:
-        # Suppress spamming the terminal
-        m5.options.quiet=True
-        m5.options.redirect_stderr=True
-        m5.options.redirect_stdout=True
-        m5.options.silent_redirect=True
-        m5.options.stderr_file="/dev/null"
-        m5.options.stdout_file="/dev/null"
-
-    print(f"Starting sim worker pool with {sim_worker_count} workers")
-
-    pool = gem5mp.Pool(processes=sim_worker_count,
-                       maxtasksperchild=1,
-                       initializer=simrun_init,
-                       initargs=(result_queues,))
-    # The previous signal call is supposed to return the "default"
-    # signal handler, but somehow it isn't a valid handler with gem5
-    # Therefore let's just set one that will terminate the program
-    # TODO: exit gracefully
-    def stop_processes_and_exit(sig,frame):
-        pool.terminate()
-        for p in dp_processes:
-            p.terminate()
-        exit(-1)
-    signal.signal(signal.SIGINT, stop_processes_and_exit)
-
-    os.makedirs(base_out_dir,exist_ok=True)
-    try:
-        for result in tqdm.tqdm(pool.imap_unordered(
-                functools.partial(
-                    simrun, isa
-                    ),
-                    combinations
-                ),
-                unit='sim',
-                desc='Simulating: ',
-                total=combination_count,
-                delay=1,
-                smoothing=0.1,
-                position=args.tqdm_position):
-            #result_queue.put(result)
-            sys.stdout.flush()
-
-    except KeyboardInterrupt:
-        print("Keyboard interrupt received, terminating pool")
-        pool.terminate()
-        # All sim workers must finish before end_event is set
-        pool.join()
-        print("Setting end_event")
+    if args.single_process:
+        print("Single Process mode")
+        simrun.q = gem5Context().Queue()
+        end_event = gem5Context().Event()
         end_event.set()
-        for p in dp_processes:
-            p.terminate()
+        for combo in tqdm.tqdm(
+                    combinations,
+                    unit='sim',
+                    desc='Simulating: ',
+                    total=combination_count,
+                    delay=1,
+                    smoothing=0.1,
+                    position=args.tqdm_position):
+            simrun(isa,combo)
+        process_results(
+            args.stat_filename+f"rank{mpi_rank}_"+f"dp0_",
+            base_out_dir,
+            args.split_bytes,
+            simrun.q,
+            end_event)
     else:
-        pool.close()
-        # All sim workers must finish before end_event is set
-        pool.join()
-        print("Setting end_event")
-        end_event.set()
+
+        dp_worker_count = max(1,max_workers//sims_per_dataprocs)
+        sim_worker_count = max(1,max_workers - dp_worker_count)
+
+        result_queues = [gem5Context().Queue() for i in range(dp_worker_count)]
+
+        # Ignore signals in the pool
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        end_event = gem5Context().Event()
+        dp_processes = [gem5Context().Process(target=process_results,
+                         args=(args.stat_filename+f"rank{mpi_rank}_"+f"dp{i}_",
+                          base_out_dir,
+                          args.split_bytes,
+                          result_queues[i],
+                          end_event)) for i in range(dp_worker_count)]
+
         for p in dp_processes:
-            p.join()
+            p.start()
+
+        # Suppress file creation
+        m5.options.outdir="/dev/null"
+        m5.options.no_output_files=True
+        m5.options.dump_config=False
+        m5.options.json_config=False
+        m5.options.dot_config=False
+        m5.options.dot_dvfs_config=False
+        m5.core.setOutputDir("/dev/null")
+        if args.quiet:
+            # Suppress spamming the terminal
+            m5.options.quiet=True
+            m5.options.redirect_stderr=True
+            m5.options.redirect_stdout=True
+            m5.options.silent_redirect=True
+            m5.options.stderr_file="/dev/null"
+            m5.options.stdout_file="/dev/null"
+
+        print(f"Starting sim worker pool with {sim_worker_count} workers")
+
+        pool = gem5mp.Pool(processes=sim_worker_count,
+                           maxtasksperchild=1,
+                           initializer=simrun_init,
+                           initargs=(result_queues,))
+        # The previous signal call is supposed to return the "default"
+        # signal handler, but somehow it isn't a valid handler with gem5
+        # Therefore let's just set one that will terminate the program
+        # TODO: exit gracefully
+        def stop_processes_and_exit(sig,frame):
+            pool.terminate()
+            for p in dp_processes:
+                p.terminate()
+            exit(-1)
+        signal.signal(signal.SIGINT, stop_processes_and_exit)
+
+        os.makedirs(base_out_dir,exist_ok=True)
+        try:
+            for result in tqdm.tqdm(pool.imap_unordered(
+                    functools.partial(
+                        simrun, isa
+                        ),
+                        combinations
+                    ),
+                    unit='sim',
+                    desc='Simulating: ',
+                    total=combination_count,
+                    delay=1,
+                    smoothing=0.1,
+                    position=args.tqdm_position):
+                #result_queue.put(result)
+                sys.stdout.flush()
+
+        except KeyboardInterrupt:
+            print("Keyboard interrupt received, terminating pool")
+            pool.terminate()
+            # All sim workers must finish before end_event is set
+            pool.join()
+            print("Setting end_event")
+            end_event.set()
+            for p in dp_processes:
+                p.terminate()
+        else:
+            pool.close()
+            # All sim workers must finish before end_event is set
+            pool.join()
+            print("Setting end_event")
+            end_event.set()
+            for p in dp_processes:
+                p.join()
 
 
 if __name__ == "__main__":
