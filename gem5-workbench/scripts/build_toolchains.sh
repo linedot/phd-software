@@ -4,7 +4,7 @@
 architectures=(aarch64 riscv64)
 binutils_version=2.42
 linux_version=6.8
-gcc_version=13.2.0
+gcc_version=14.1.0
 gmp_version=6.3.0
 glibc_version=2.39
 
