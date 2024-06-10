@@ -137,21 +137,21 @@ def main():
     max_good = gmapdf["n_good"].max()
 
     for scale in [1.0,1.2,1.4]:
-        fig, axs = plt.subplots(figsize=(scale*9,scale*2.2),ncols=3,sharex=True,sharey=True)
+        fig, axs = plt.subplots(figsize=(scale*9,scale*2.2),ncols=4,sharex=True,sharey=True)
         cbar_ax  = fig.add_axes([1.01,.1,.03,.7])
-        for (lsimd, group),ax in zip(gmapdf.groupby("simd_lat"),axs.flat):
-            plotdf = group.pivot(index="simd_width", columns="simd_count", values="n_good")
+        for (wsimd, group),ax in zip(gmapdf.groupby("simd_width"),axs.flat):
+            plotdf = group.pivot(index="simd_lat", columns="simd_count", values="n_good")
             sns.heatmap(plotdf.T, annot=True, ax=ax, vmin=0, vmax=max_good, cbar_ax=cbar_ax)
             ax.set_xlabel(None)
             ax.set_ylabel(None)
-            ax.set_title(f"$\lambda_\mathrm{{SIMD,FMA}}={lsimd}$")
+            ax.set_title(f"$w_\mathrm{{SIMD}}\mathrm{{[bit]}}={wsimd}$")
 
-        fig.text(0.5, 0.03, '$w_\mathrm{SIMD}\mathrm{[bit]}$', ha='center')
+        fig.text(0.5, 0.03,"$\lambda_\mathrm{SIMD,FMA}$", ha='center')
         fig.text(-0.01, 0.5, '$N_\mathrm{SIMD}$', va='center', rotation='vertical')
         cbar_ax.set_yticks(np.arange(0,max_good+1,10))
         cbar_ax.set_ylabel("$n_\mathrm{good}$")
         fig.tight_layout()
-        fig.savefig(f"lsimdall_good_heatmap_s{scale}.pdf",bbox_inches='tight')
+        fig.savefig(f"wsimdall_good_heatmap_s{scale}.pdf",bbox_inches='tight')
 
 if "__main__" == __name__:
     main()
