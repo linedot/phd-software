@@ -4,9 +4,11 @@
 architectures=(aarch64 riscv64)
 binutils_version=2.42
 linux_version=6.9
-gcc_version=14.1.0
+gcc_version=14.2.0
 gmp_version=6.3.0
-glibc_version=2.39
+glibc_version=2.40
+
+export NJOBS=$(($(nproc)/2+1))
 
 script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 

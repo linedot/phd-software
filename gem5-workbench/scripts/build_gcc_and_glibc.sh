@@ -318,14 +318,14 @@ if [ 0 -ne $? ]; then
 fi
 logfile="${build_dir}/gmp-build.log"
 echo "Building GMP. Log: ${logfile}"
-make -j $(nproc) > $logfile 2>&1
+make -j $NJOBS > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build GMP"
     exit -1
 fi
 logfile="${build_dir}/gmp-install.log"
 echo "Installing GMP. Log: ${logfile}"
-make -j $(nproc) install > $logfile 2>&1
+make -j $NJOBS install > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to install GMP"
     exit -1
@@ -384,14 +384,14 @@ if [ 0 -ne $? ]; then
 fi
 logfile="${build_dir}/gcc-stage1-build.log"
 echo "Building stage 1 GCC. Log: ${logfile}"
-make -j $(nproc) all-gcc all-target-libgcc > $logfile 2>&1
+make -j $NJOBS all-gcc all-target-libgcc > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build stage 1 GCC"
     exit -1
 fi
 logfile="${build_dir}/gcc-stage1-install.log"
 echo "Installing stage 1 GCC. Log: ${logfile}"
-make -j $(nproc) install-gcc install-target-libgcc > $logfile 2>&1
+make -j $NJOBS install-gcc install-target-libgcc > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to install stage 1 GCC"
     exit -1
@@ -431,14 +431,14 @@ if [ 0 -ne $? ]; then
 fi
 logfile="${build_dir}/glibc-build.log"
 echo "Building GLIBC. Log: ${logfile}"
-make -j $(nproc) > $logfile 2>&1
+make -j $NJOBS > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build GLIBC"
     exit -1
 fi
 logfile="${build_dir}/glibc-install.log"
 echo "Installing GLIBC. Log: ${logfile}"
-make -j $(nproc) install_root=${sysroot} install > $logfile 2>&1
+make -j $NJOBS install_root=${sysroot} install > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to install GLIBC"
     exit -1
@@ -502,14 +502,14 @@ logfile="${build_dir}/gcc-stage2-build.log"
 echo "Building stage 2 (final) GCC. Log: ${logfile}"
 CC="gcc" && \
 CXX="g++" && \
-make -j $(nproc) > $logfile 2>&1
+make -j $NJOBS > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to build stage 2 (final) GCC"
     exit -1
 fi
 logfile="${build_dir}/gcc-stage2-install.log"
 echo "Installing stage 2 (final) GCC. Log: ${logfile}"
-make -j $(nproc) install-gcc install-target-{libgcc,libstdc++-v3,libgomp,libgfortran,libquadmath,libatomic} > $logfile 2>&1
+make -j $NJOBS install-gcc install-target-{libgcc,libstdc++-v3,libgomp,libgfortran,libquadmath,libatomic} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to install stage 2 (final) GCC"
     exit -1

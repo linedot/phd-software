@@ -144,7 +144,7 @@ fi
 logfile="${build_dir}/linux-headers-mrproper.log"
 echo "cleaning up linux headers. Log: ${logfile}"
 cd linux-${version}
-make -j $(nproc) ARCH=${kernel_arch} mrproper 2>&1 >> $logfile
+make -j $NJOBS ARCH=${kernel_arch} mrproper 2>&1 >> $logfile
 if [ 0 -ne $? ]; then
     echo "Failed to clean up linux headers"
     exit -1
@@ -152,7 +152,7 @@ fi
 
 logfile="${build_dir}/linux-headers-headers_install.log"
 echo "Installing linux headers. Log: ${logfile}"
-make INSTALL_HDR_PATH="${sysroot}" ARCH=${kernel_arch} V=0 -j $(nproc) headers_install 2>&1 > $logfile
+make INSTALL_HDR_PATH="${sysroot}" ARCH=${kernel_arch} V=0 -j $NJOBS headers_install 2>&1 > $logfile
 if [ 0 -ne $? ]; then
     echo "Failed to install linux headers"
     exit -1
