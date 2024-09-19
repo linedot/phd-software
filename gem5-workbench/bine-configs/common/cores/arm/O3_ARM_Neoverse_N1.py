@@ -96,18 +96,18 @@ class O3_ARM_Neoverse_N1_FP(FUDesc):
 
     count = 2 
 
-class O3_ARM_Neoverse_N1_Vec(FUDesc):
-    opList = [
-                 OpDesc(opClass='VectorFloatArith', opLat=4),
-                 OpDesc(opClass='VectorFloatConvert', opLat=4),
-                 OpDesc(opClass='VectorFloatReduce', opLat=4),
-                 OpDesc(opClass='VectorIntegerArith', opLat=4),
-                 OpDesc(opClass='VectorIntegerReduce', opLat=4),
-                 OpDesc(opClass='VectorMisc', opLat=4),
-                 OpDesc(opClass='VectorConfig', opLat=1),
-             ]
-
-    count = 2 
+#class O3_ARM_Neoverse_N1_Vec(FUDesc):
+#    opList = [
+#                 OpDesc(opClass='VectorFloatArith', opLat=4),
+#                 OpDesc(opClass='VectorFloatConvert', opLat=4),
+#                 OpDesc(opClass='VectorFloatReduce', opLat=4),
+#                 OpDesc(opClass='VectorIntegerArith', opLat=4),
+#                 OpDesc(opClass='VectorIntegerReduce', opLat=4),
+#                 OpDesc(opClass='VectorMisc', opLat=4),
+#                 OpDesc(opClass='VectorConfig', opLat=1),
+#             ]
+#
+#    count = 2 
 
 
 # This class refers to pipelines Branch0, Integer single Cycles 0, Integer single Cycle 1 (symbol B and S in (2) table 3)
@@ -134,17 +134,19 @@ class O3_ARM_Neoverse_N1_Complex_Int(FUDesc):
 class O3_ARM_Neoverse_N1_Load(FUDesc):
     opList = [ OpDesc(opClass='MemRead'), 
                OpDesc(opClass='FloatMemRead'), 
-               OpDesc(opClass='VectorUnitStrideLoad'), 
-               OpDesc(opClass='VectorStridedLoad'), 
-               OpDesc(opClass='VectorWholeRegisterLoad') ]
+#               OpDesc(opClass='VectorUnitStrideLoad'), 
+#               OpDesc(opClass='VectorStridedLoad'), 
+#               OpDesc(opClass='VectorWholeRegisterLoad') 
+              ]
     count = 2 #
 
 class O3_ARM_Neoverse_N1_Store(FUDesc):
     opList = [ OpDesc(opClass='MemWrite'),
                OpDesc(opClass='FloatMemWrite'), 
-               OpDesc(opClass='VectorUnitStrideStore'), 
-               OpDesc(opClass='VectorStridedStore'), 
-               OpDesc(opClass='VectorWholeRegisterStore') ]
+#               OpDesc(opClass='VectorUnitStrideStore'), 
+#               OpDesc(opClass='VectorStridedStore'), 
+#               OpDesc(opClass='VectorWholeRegisterStore') 
+              ]
     count = 2 #
 
 class O3_ARM_Neoverse_N1_PredAlu(FUDesc):
@@ -160,7 +162,8 @@ class O3_ARM_Neoverse_N1_FUP(FUPool):
               O3_ARM_Neoverse_N1_Store(),
               O3_ARM_Neoverse_N1_PredAlu(),
               O3_ARM_Neoverse_N1_FP(),
-              O3_ARM_Neoverse_N1_Vec()]
+              #O3_ARM_Neoverse_N1_Vec(),
+              ]
 
 # Bi-Mode Branch Predictor
 class O3_ARM_Neoverse_N1_BP(BiModeBP):

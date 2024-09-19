@@ -223,9 +223,9 @@ def setup_cpu(isa:str,
             if ('SimdFloatMultAcc' == str(op.opClass)):
                 op.opLat = simd_lat
                 fu.count = simd_count
-            elif ('VectorFloatArith' == str(op.opClass)):
-                op.opLat = simd_lat
-                fu.count = simd_count
+            #elif ('VectorFloatArith' == str(op.opClass)):
+            #    op.opLat = simd_lat
+            #    fu.count = simd_count
             elif ('MemWrite' == str(op.opClass)):
                 fu.count = st_count
             elif ('MemRead' == str(op.opClass)):
