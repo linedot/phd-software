@@ -95,6 +95,9 @@ fi
 mkdir -p ${build_dir}
 cd ${build_dir}
 
+gpg_dir=${build_dir}/gpg
+mkdir -p ${gpg_dir}
+
 archive_file=linux-${version}.tar.xz
 if [ ! -e "$archive_file" ]; then
     echo "Downloading ${archive_file}"
@@ -124,7 +127,7 @@ archive_file=${unxzed_archive_file}
 
 logfile="${build_dir}/linux-headers-gpg-verify.log"
 echo "verifying ${archive_file} with ${signature_file}. Log: ${logfile}"
-gpg --keyserver hkps://keyserver.ubuntu.com --keyserver-options auto-key-retrieve --verify ${signature_file} ${archive_file} > $logfile 2>&1
+gpg --homedir ${gpg_dir} --keyserver hkps://keyserver.ubuntu.com --keyserver-options auto-key-retrieve --verify ${signature_file} ${archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${archive_file} with ${signature_file}. Archive damaged/aborted download? Aborting"
     exit -1

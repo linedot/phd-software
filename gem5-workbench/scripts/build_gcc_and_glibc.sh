@@ -116,6 +116,9 @@ echo "GMP version      = ${version_gmp}"
 mkdir -p ${build_dir}
 cd ${build_dir}
 
+gpg_dir=${build_dir}/gpg
+mkdir -p ${gpg_dir}
+
 # Download GNU's keyring and verify with that
 gnu_keyring_file=gnu-keyring.gpg
 if [ ! -e "${gnu_keyring_file}" ]; then
@@ -143,7 +146,7 @@ fi
 
 logfile="${build_dir}/gcc-gpg-verify.log"
 echo "Verifying ${gcc_archive_file}. Log: ${logfile}"
-gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${gcc_signature_file} ${gcc_archive_file} > $logfile 2>&1
+gpg --homedir ${gpg_dir} --keyring $(pwd)/${gnu_keyring_file} --verify ${gcc_signature_file} ${gcc_archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${gcc_archive_file} with ${gcc_signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
@@ -167,7 +170,7 @@ fi
 
 logfile="${build_dir}/glibc-gpg-verify.log"
 echo "Verifying ${glibc_archive_file}. Log: ${logfile}"
-gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${glibc_signature_file} ${glibc_archive_file} > $logfile 2>&1
+gpg --homedir ${gpg_dir} --keyring $(pwd)/${gnu_keyring_file} --verify ${glibc_signature_file} ${glibc_archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${glibc_archive_file} with ${glibc_signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
@@ -191,7 +194,7 @@ fi
 
 logfile="${build_dir}/gmp-gpg-verify.log"
 echo "Verifying ${gmp_archive_file}. Log: ${logfile}"
-gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${gmp_signature_file} ${gmp_archive_file} > $logfile 2>&1
+gpg --homedir ${gpg_dir} --keyring $(pwd)/${gnu_keyring_file} --verify ${gmp_signature_file} ${gmp_archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${gmp_archive_file} with ${gmp_signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
