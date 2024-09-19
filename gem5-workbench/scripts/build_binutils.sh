@@ -88,6 +88,8 @@ echo "version          = ${version}"
 mkdir -p ${build_dir}
 cd ${build_dir}
 
+gpg_dir=${build_dir}/gpg
+mkdir -p ${gpg_dir}
 
 # Download GNU's keyring and verify with that
 gnu_keyring_file=gnu-keyring.gpg
@@ -116,7 +118,7 @@ fi
 
 logfile="${build_dir}/binutils-gpg-verify.log"
 echo "Verifying ${archive_file} with ${signature_file}. Log: ${logfile}"
-gpg --keyring $(pwd)/${gnu_keyring_file} --verify ${signature_file} ${archive_file} > $logfile 2>&1
+gpg --homedir ${gpg_dir} --keyring $(pwd)/${gnu_keyring_file} --verify ${signature_file} ${archive_file} > $logfile 2>&1
 if [ 0 -ne $? ]; then
     echo "Failed to verify ${archive_file} with ${signature_file}. Archive damaged/aborted download? Aborting"
     exit -1
