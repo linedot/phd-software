@@ -1,7 +1,7 @@
 import os
 import math
 
-from processors.switchable_processor import multisim_switchable_processor
+from processors.parameterized_switchable_processor import parameterized_switchable_processor
 
 def lcm(a, b):
     return abs(a*b) // math.gcd(a, b)
@@ -64,7 +64,7 @@ def setup_cpu(arch_params:dict):
 
 def setup_processor(arch_params : dict):
 
-    processor = multisim_switchable_processor(
+    processor = parameterized_switchable_processor(
         arch_params,
         #TODO: add num_cores to arch_params
         num_cores=1,

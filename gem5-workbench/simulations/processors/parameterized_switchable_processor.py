@@ -58,7 +58,7 @@ def setup_core(arch_params:dict):
 
     return BaseCPUCore(core=cpu,isa=core_isa)
 
-class multisim_switchable_processor(SwitchableProcessor):
+class parameterized_switchable_processor(SwitchableProcessor):
     """ 
     Switchable processor for the multi-sim setup
     """

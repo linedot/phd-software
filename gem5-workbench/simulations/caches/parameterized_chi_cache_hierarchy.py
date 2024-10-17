@@ -83,7 +83,7 @@ class CHI_SNF_ExtCtrl(CHI_SNF_Base):
         self.connectController(self._cntrl)
         self.cntrl = self._cntrl
 
-class PrivateL1L2SharedL3CacheHierarchy(AbstractRubyCacheHierarchy):
+class parameterized_chi_cache_hierarchy(AbstractRubyCacheHierarchy):
     """A 2-level cache based on CHI
     """
 

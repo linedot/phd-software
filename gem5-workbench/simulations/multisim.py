@@ -25,7 +25,7 @@ from simargs import kernel_params, arch_params, process_arguments
 
 from simsetup import setup_processor
 
-from caches.private_l1l2 import PrivateL1L2SharedL3CacheHierarchy
+from caches.parameterized_chi_cache_hierarchy import parameterized_chi_cache_hierarchy
 
 def main():
 
@@ -34,7 +34,7 @@ def main():
     kparams = {k:args[k][0] for k in kernel_params.keys()}
     aparams = {k:args[k][0] for k in arch_params.keys()}
 
-    cache_hierarchy =  PrivateL1L2SharedL3CacheHierarchy(aparams)
+    cache_hierarchy =  parameterized_chi_cache_hierarchy(aparams)
 
     memory = DIMM_DDR5_6400(size="2GB")
 
