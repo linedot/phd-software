@@ -252,6 +252,9 @@ class parameterized_chi_cache_hierarchy(AbstractRubyCacheHierarchy):
         # Assign downstream destinations
         for rnf in self.ruby_system.rnf:
             rnf.setDownstream(hnf_dests)
+            for seqwrap in rnf.getSequencers():
+                seqwrap.connectIOPorts(board.get_io_bus())
+
         if board.has_dma_ports():
             for rni in self.ruby_system.dma_rni:
                 rni.setDownstream(hnf_dests)
@@ -302,7 +305,9 @@ class parameterized_chi_cache_hierarchy(AbstractRubyCacheHierarchy):
         for seq, cpu in zip(cpu_sequencers,cores):
             seq.connectCpuPorts(cpu)
 
-        self.ruby_system.num_of_sequencers = len(cpu_sequencers)+len(self.ruby_system.dma_rni)
+        self.ruby_system.num_of_sequencers = len(cpu_sequencers)
+        if board.has_dma_ports():
+            self.ruby_system.num_of_sequencers += len(self.ruby_system.dma_rni)
 
         # Set up a proxy port for the system_port. Used for load binaries and
         # other functional-only things.

@@ -9,7 +9,7 @@ from gem5.utils.override import *
 from gem5.isas import ISA
 
 
-def setup_core(arch_params:dict):
+def setup_core(arch_params:dict, core_id:int):
     import m5
     from m5.objects import ArmISA, RiscvISA
     from gem5.utils.requires import requires
@@ -25,12 +25,12 @@ def setup_core(arch_params:dict):
         requires(isa_required=ISA.ARM)
         cpu_isa = ArmISA(sve_vl_se=simd_width/128)
         core_isa = ISA.ARM
-        cpu = O3_ARM_Neoverse_N1(isa=cpu_isa)
+        cpu = O3_ARM_Neoverse_N1(isa=cpu_isa, cpu_id=core_id)
     elif "riscv64" == isa:
         requires(isa_required=ISA.RISCV)
         cpu_isa = RiscvISA(vlen=simd_width)
         core_isa = ISA.RISCV
-        cpu = O3_ARM_Neoverse_N1_but_RISCV(isa=cpu_isa)
+        cpu = O3_ARM_Neoverse_N1_but_RISCV(isa=cpu_isa, cpu_id=core_id)
     else:
         raise RuntimeError(f"Unsupported ISA: {isa}")
 
@@ -94,13 +94,15 @@ class parameterized_switchable_processor(SwitchableProcessor):
         else:
             raise RuntimeError("Unsupported ISA")
 
+        print(f"ISA: {isa}")
+
         switchable_cores = {
             self._start_key: [
                 SimpleCore(cpu_type=CPUTypes.ATOMIC, core_id=i, isa=isa)
                 for i in range(num_cores)
             ],
             self._switch_key: [
-                setup_core(arch_params=arch_params)
+                setup_core(arch_params=arch_params, core_id=i)
                 for i in range(num_cores)
             ],
         }

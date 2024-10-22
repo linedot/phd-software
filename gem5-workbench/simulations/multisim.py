@@ -34,10 +34,10 @@ def main():
     kparams = {k:args[k][0] for k in kernel_params.keys()}
     aparams = {k:args[k][0] for k in arch_params.keys()}
 
-    #cache_hierarchy =  parameterized_chi_cache_hierarchy(aparams)
-    cache_hierarchy =  PrivateL1CacheHierarchy(assoc=4,size="64KiB")
+    cache_hierarchy =  parameterized_chi_cache_hierarchy(aparams)
+    #cache_hierarchy =  PrivateL1CacheHierarchy(assoc=4,size="64KiB")
 
-    memory = DIMM_DDR5_6400(size="2GB")
+    memory = DIMM_DDR5_6400(size="4GB")
 
     processor = setup_processor(aparams)
 
