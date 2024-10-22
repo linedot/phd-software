@@ -34,5 +34,9 @@
     - SOLVED
     - remove/comment out L3 code
 - "AttributeError: Can't resolve proxy 'eventq_index' of type 'UInt32' from '<orphan CHI_SNF_ExtCtrl>'"
-    - No idea
+    - SOLVED
+    - weird gem5ism - you can't append to the list of SNFs, you have to create them in the list comprehension
+- `src/base/statistics.hh:1175: fatal: fatal condition (_x <= 0) || (_y <= 0) occurred: Storage sizes must be positive`
+    - Very unhelpful message, maybe something with memory initialization?
+
 

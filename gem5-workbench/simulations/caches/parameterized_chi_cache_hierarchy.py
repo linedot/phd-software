@@ -196,14 +196,16 @@ class parameterized_chi_cache_hierarchy(AbstractRubyCacheHierarchy):
             all_cntrls.extend(hnf.getAllControllers())
             hnf_dests.extend(hnf.getAllControllers())
         
-        num_dirs = len(board.get_mem_ports())
+        snf_count = len(board.get_mem_ports())
+        print(f"Board has {snf_count} mem ports")
         self.ruby_system.snf = [
             CHI_SNF_MainMem(self.ruby_system, None, None)
-            for i in range(num_dirs)
+            for i in range(snf_count)
         ]
         for snf, (rng, port) in zip(self.ruby_system.snf, board.get_mem_ports()):
+            print(f"Port: {port}; Range: {rng}")
             snf._cntrl.addr_ranges = [rng]
-            snf._cntrl.__dict__["range"] = rng
+            #snf._cntrl.__dict__["range"] = rng
             snf._cntrl.memory_out_port = port
 
 

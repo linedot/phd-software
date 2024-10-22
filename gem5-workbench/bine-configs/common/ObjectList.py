@@ -134,7 +134,12 @@ class CPUList(ObjectList):
 
         from m5.defines import buildEnv
         from importlib import import_module
-        for package in [ "generic", buildEnv['TARGET_ISA']]:
+        isas = []
+        if buildEnv['USE_ARM_ISA']:
+            isas.append("arm")
+        if buildEnv['USE_RISCV_ISA']:
+            isas.append("riscv")
+        for package in [ "generic" ]+isas:
             try:
                 package = import_module(".cores." + package,
                                         package=__name__.rpartition('.')[0])
