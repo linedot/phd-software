@@ -4,7 +4,8 @@ import m5
 from gem5.coherence_protocol import CoherenceProtocol
 from gem5.components.boards.arm_board import ArmBoard
 from gem5.components.boards.riscv_board import RiscvBoard
-from gem5.components.memory import DIMM_DDR5_6400
+from gem5.components.memory.dram_interfaces.ddr5 import DDR5_6400_4x8
+from gem5.components.memory.memory import ChanneledMemory
 from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.switchable_processor import SwitchableProcessor
 from gem5.components.cachehierarchies.chi.private_l1_cache_hierarchy import  PrivateL1CacheHierarchy
@@ -37,7 +38,7 @@ def main():
     cache_hierarchy =  parameterized_chi_cache_hierarchy(aparams)
     #cache_hierarchy =  PrivateL1CacheHierarchy(assoc=4,size="64KiB")
 
-    memory = DIMM_DDR5_6400(size="4GB")
+    memory = ChanneledMemory(DDR5_6400_4x8, 4, 64, size="4GB")
 
     processor = setup_processor(aparams)
 
