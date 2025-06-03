@@ -2,11 +2,11 @@
 #
 
 architectures=(aarch64 riscv64)
-binutils_version=2.42
-linux_version=6.9
-gcc_version=14.2.0
+binutils_version=2.44
+linux_version=6.14
+gcc_version=15.1.0
 gmp_version=6.3.0
-glibc_version=2.40
+glibc_version=2.41
 
 export NJOBS=$(($(nproc)/2+1))
 

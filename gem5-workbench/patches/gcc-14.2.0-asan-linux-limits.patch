@@ -1,0 +1,14 @@
+--- a/libsanitizer/asan/asan_linux.cpp	2023-04-26 09:09:43.000000000 +0200
++++ b/libsanitizer/asan/asan_linux.cpp	2024-05-09 10:51:12.186958890 +0200
+@@ -31,7 +31,11 @@
+ 
+ #  include <dlfcn.h>
+ #  include <fcntl.h>
++#  if SANITIZER_LINUX
++#  include <linux/limits.h>
++#  else
+ #  include <limits.h>
++#  endif
+ #  include <pthread.h>
+ #  include <stdio.h>
+ #  include <sys/mman.h>

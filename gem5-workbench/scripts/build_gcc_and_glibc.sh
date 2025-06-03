@@ -263,12 +263,17 @@ else
     echo "Directory gmp-${version_gmp} exists, using that"
 fi
 
-echo "Checking for GLIBC patches (filename must start with gmp-${version_gmp}):"
+echo "Checking for GMP patches (filename must start with gmp-${version_gmp}):"
 patches=($(ls -d ${patch_dir}/gmp-${version_gmp}*.patch 2>/dev/null))
 if [ ${#patches[@]} -ne 0 ]; then
     logfile="${build_dir}/gmp-patching.log"
-    echo "Applying GLIBC patches. Log: ${logfile}"
+    echo "Applying GMP patches. Log: ${logfile}"
     for patch in "${patches[@]}"; do
+        echo "Checking if patch ${patch} was already applied to gmp-${version_gmp}"
+        if patch -d gmp-${version_gmp} -R -p1 -s -f --dry-run < $patch; then
+            echo "Skipping ${patch} - already applied"
+            continue
+        fi
         echo "Applying patch ${patch} to gmp-${version_gmp}"
         patch -d gmp-${version_gmp} -p1 < $patch > $logfile 2>&1
         if [ 0 -ne $? ]; then
